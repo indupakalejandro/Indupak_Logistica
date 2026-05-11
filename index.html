@@ -1194,7 +1194,7 @@
         <div class="container-fluid d-flex justify-content-between align-items-center">
 
             <div id="navbarTitleSection" class="d-flex align-items-center">
-                <a class="navbar-brand-item" id="fullTitle" href="#" onclick="mostrarPanel('dashboard')"><i class="bi bi-box-seam-fill"></i> <span><span class="brand-indupak">Indupak</span> <span class="brand-Logística">Logística</span></span> <span class="badge bg-success ms-2" style="font-size:0.65rem;">v2.0</span></a>
+                <a class="navbar-brand-item" id="fullTitle" href="#" onclick="mostrarPanel('dashboard', event)"><i class="bi bi-box-seam-fill"></i> <span><span class="brand-indupak">Indupak</span> <span class="brand-Logística">Logística</span></span> <span class="badge bg-success ms-2" style="font-size:0.65rem;">v2.0</span></a>
             </div>
 
             <div id="navbarNavSection" class="d-flex align-items-center">
@@ -1203,15 +1203,15 @@
                         Dashboard
                     </button>
                     <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton" id="navbarDropdownMenu">
-                        <li><a class="dropdown-item active" id="nav-dashboard" onclick="mostrarPanel('dashboard')">Dashboard</a></li>
-                        <li><a class="dropdown-item" id="nav-inventario" onclick="mostrarPanel('inventario')">Inventario</a></li>
-                        <li><a class="dropdown-item" id="nav-proveedores" onclick="mostrarPanel('proveedores')">Proveedores</a></li>
-                        <li><a class="dropdown-item" id="nav-comisionistas" onclick="mostrarPanel('comisionistas')">Comisionistas</a></li>
-                        <li><a class="dropdown-item" id="nav-compras" onclick="mostrarPanel('compras')">Compras</a></li>
-                        <li><a class="dropdown-item" id="nav-faltantes" onclick="mostrarPanel('faltantes')">Faltantes</a></li>
-                        <li><a class="dropdown-item" id="nav-pagos" onclick="mostrarPanel('pagos')">Pagos</a></li>
-                        <li><a class="dropdown-item" id="nav-control" onclick="mostrarPanel('control')"><i class="bi bi-clipboard2-check-fill"></i> Control</a></li>
-                        <li><a class="dropdown-item" id="nav-configuracion" onclick="mostrarPanel('configuracion')"><i class="bi bi-gear-fill"></i> Configuración</a></li>
+                        <li><a class="dropdown-item active" id="nav-dashboard" onclick="mostrarPanel('dashboard', event)">Dashboard</a></li>
+                        <li><a class="dropdown-item" id="nav-inventario" onclick="mostrarPanel('inventario', event)">Inventario</a></li>
+                        <li><a class="dropdown-item" id="nav-proveedores" onclick="mostrarPanel('proveedores', event)">Proveedores</a></li>
+                        <li><a class="dropdown-item" id="nav-comisionistas" onclick="mostrarPanel('comisionistas', event)">Comisionistas</a></li>
+                        <li><a class="dropdown-item" id="nav-compras" onclick="mostrarPanel('compras', event)">Compras</a></li>
+                        <li><a class="dropdown-item" id="nav-faltantes" onclick="mostrarPanel('faltantes', event)">Faltantes</a></li>
+                        <li><a class="dropdown-item" id="nav-pagos" onclick="mostrarPanel('pagos', event)">Pagos</a></li>
+                        <li><a class="dropdown-item" id="nav-control" onclick="mostrarPanel('control', event)"><i class="bi bi-clipboard2-check-fill"></i> Control</a></li>
+                        <li><a class="dropdown-item" id="nav-configuracion" onclick="mostrarPanel('configuracion', event)"><i class="bi bi-gear-fill"></i> Configuración</a></li>
                     </ul>
                 </div>
             </div>
@@ -1231,7 +1231,7 @@
         <div class="row">
             <!-- Tarjeta de Pagos Pendientes -->
             <div class="col-md-4 mb-4">
-                <div class="card dashboard-card" onclick="mostrarPanel('pagos')">
+                <div class="card dashboard-card" onclick="mostrarPanel('pagos', event)">
                     <div class="card-body">
                         <i class="bi bi-cash-coin icon"></i>
                         <div class="value" id="dashboard-pagos-pendientes">0</div>
@@ -1241,7 +1241,7 @@
             </div>
             <!-- Tarjeta de Artículos por Comprar -->
             <div class="col-md-4 mb-4">
-                <div class="card dashboard-card" onclick="mostrarPanel('compras')">
+                <div class="card dashboard-card" onclick="mostrarPanel('compras', event)">
                     <div class="card-body">
                         <i class="bi bi-bag-check icon"></i>
                         <div class="value" id="dashboard-articulos-comprar">0</div>
@@ -1251,7 +1251,7 @@
             </div>
             <!-- Nueva Tarjeta de Artículos Faltantes -->
             <div class="col-md-4 mb-4">
-                <div class="card dashboard-card" onclick="mostrarPanel('faltantes')">
+                <div class="card dashboard-card" onclick="mostrarPanel('faltantes', event)">
                     <div class="card-body">
                         <i class="bi bi-exclamation-octagon icon"></i>
                         <div class="value" id="dashboard-articulos-faltantes">0</div>
@@ -2322,6 +2322,13 @@
                 if (!isAuthReady) return;
 
                 setupControlListeners();
+                
+                // Restore any ongoing control from localStorage after listeners are ready
+                setTimeout(() => {
+                    if (currentActivePanel === 'control') {
+                        controlRestaurarDesdeLocal();
+                    }
+                }, 500);
 
                 // Inventario Listener
                 onSnapshot(getUserCollection('inventario'), (snapshot) => {
@@ -3024,7 +3031,10 @@
              * Displays the specified panel and updates the active navigation link.
              * @param {string} panelId - The ID of the panel to display (e.g., 'dashboard', 'inventario', 'proveedores', 'configuracion', 'comisionistas', 'compras', 'pagos', 'faltantes').
              */
-            window.mostrarPanel = function(panelId) { // Make global
+            window.mostrarPanel = function(panelId, event) { // Make global
+                // Prevent accidental clicks from zoom/pinch gestures
+                if (event && event.detail === 0) return; // Zoom gestures have detail === 0
+                
                 // Hide all panels first
                 document.getElementById('panel-dashboard').style.display = 'none';
                 document.getElementById('panel-inventario').style.display = 'none';
@@ -3085,7 +3095,11 @@
                 } else if (panelId === 'control') {
                     document.getElementById('panel-control').style.display = 'block';
                     if (document.getElementById('nav-control')) document.getElementById('nav-control').classList.add('active');
-                    controlMostrarLista();
+                    // Try to restore an ongoing control first
+                    controlRestaurarDesdeLocal();
+                    if (!controlEjecucionActual) {
+                        controlMostrarLista();
+                    }
                 } else if (panelId === 'configuracion') {
                     document.getElementById('panel-configuracion').style.display = 'block';
                     if (document.getElementById('nav-configuracion')) document.getElementById('nav-configuracion').classList.add('active');
@@ -5133,6 +5147,38 @@
             let controlEditorId = null;       // id del formulario en edición (null = nuevo)
             let controlEjecucionActual = null; // { formularioId, nombre, items[] }
 
+            // Guardar estado del control en localStorage cuando hay cambios
+            function controlGuardarEnLocal() {
+                if (controlEjecucionActual) {
+                    localStorage.setItem('controlEjecucionActual', JSON.stringify(controlEjecucionActual));
+                }
+            }
+
+            // Restaurar estado del control desde localStorage
+            function controlRestaurarDesdeLocal() {
+                const guardado = localStorage.getItem('controlEjecucionActual');
+                if (guardado) {
+                    try {
+                        controlEjecucionActual = JSON.parse(guardado);
+                        // Mostrar la ejecución si existe
+                        if (currentActivePanel === 'control' && controlEjecucionActual) {
+                            document.getElementById('control-vista-ejecucion').style.display = 'block';
+                            document.getElementById('control-ejecucion-titulo').textContent = controlEjecucionActual.nombre;
+                            document.getElementById('control-ejecucion-fecha').textContent = new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+                            controlRenderizarEjecucion();
+                        }
+                    } catch (e) {
+                        console.error('Error restaurando control:', e);
+                        localStorage.removeItem('controlEjecucionActual');
+                    }
+                }
+            }
+
+            // Limpiar localStorage cuando se completa el control
+            function controlLimpiarLocal() {
+                localStorage.removeItem('controlEjecucionActual');
+            }
+
             // ---- Firestore listeners ----
             function setupControlListeners() {
                 onSnapshot(getUserCollection('controlFormularios'), snap => {
@@ -5466,6 +5512,7 @@
                         }
                     })
                 };
+                controlGuardarEnLocal();
                 document.getElementById('control-ejecucion-titulo').textContent = f.nombre;
                 document.getElementById('control-ejecucion-fecha').textContent = new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
                 controlOcultarVistas();
@@ -5495,7 +5542,7 @@
                                         placeholder="Escribí la tarea a controlar..."
                                         value="${(item.tarea || '').replace(/"/g, '&quot;')}"
                                         style="${tachado}"
-                                        oninput="controlEjecucionActual.items[${idx}].tarea = this.value">
+                                        oninput="controlEjecucionActual.items[${idx}].tarea = this.value; controlGuardarEnLocal()">
                                     <div class="d-flex gap-2 align-items-center flex-wrap" id="novedades-list-${idx}">
                                         ${(item.novedades||[]).map((n,ni) => `
                                             <span class="badge bg-warning text-dark d-flex align-items-center gap-1" style="font-size:.8rem;">
@@ -5541,6 +5588,7 @@
 
             window.controlActualizarCantidad = function(idx, valor) {
                 controlEjecucionActual.items[idx].cantidadContada = valor;
+                controlGuardarEnLocal();
                 // Actualizar solo el badge sin re-renderizar todo
                 const badge = document.getElementById('bajo-badge-' + idx);
                 if (badge) {
@@ -5559,6 +5607,7 @@
                     input.style.textDecoration = done ? 'line-through' : '';
                     input.style.opacity = done ? '.6' : '1';
                 }
+                controlGuardarEnLocal();
             }
 
             window.controlAgregarNovedad = function(idx) {
@@ -5566,13 +5615,29 @@
                 if (texto && texto.trim()) {
                     if (!controlEjecucionActual.items[idx].novedades) controlEjecucionActual.items[idx].novedades = [];
                     controlEjecucionActual.items[idx].novedades.push(texto.trim());
-                    controlRenderizarEjecucion();
+                    controlGuardarEnLocal();
+                    // Actualizar solo la sección de novedades sin re-renderizar todo
+                    controlActualizarNovedadesVisualmente(idx);
                 }
             }
 
             window.controlEliminarNovedad = function(idx, ni) {
                 controlEjecucionActual.items[idx].novedades.splice(ni, 1);
-                controlRenderizarEjecucion();
+                controlGuardarEnLocal();
+                // Actualizar solo la sección de novedades sin re-renderizar todo
+                controlActualizarNovedadesVisualmente(idx);
+            }
+
+            function controlActualizarNovedadesVisualmente(idx) {
+                const container = document.getElementById('novedades-list-' + idx);
+                if (container) {
+                    const novedades = controlEjecucionActual.items[idx].novedades || [];
+                    container.innerHTML = novedades.map((n, ni) => `
+                        <span class="badge bg-warning text-dark d-flex align-items-center gap-1" style="font-size:.8rem;">
+                            <i class="bi bi-exclamation-triangle-fill"></i> ${n}
+                            <button type="button" class="btn-close btn-close-sm ms-1" style="font-size:.6rem;" onclick="controlEliminarNovedad(${idx},${ni})"></button>
+                        </span>`).join('');
+                }
             }
 
             window.controlCancelarEjecucion = function() {
@@ -5633,6 +5698,8 @@
                     showAlert('Control completado pero hubo un error guardando el historial.');
                 }
 
+                // Limpiar localStorage después de completar
+                controlLimpiarLocal();
                 controlMostrarResumen(ejecucion);
             }
 

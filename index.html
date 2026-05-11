@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Indupak - Gestión de Logistica</title>
+    <title>Indupak - Gestión de Logistica v2.0</title>
 
     <!-- Inclusión de Bootstrap 5 para un diseño moderno y responsivo -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -60,6 +60,8 @@
             --dropdown-item-hover-bg: rgba(255, 255, 255, 0.2);
             --dropdown-item-text: #f0f0f0;
             --dropdown-item-active-bg: rgba(96, 208, 64, 0.4); /* Accent color for active item */
+            --select-text: #f0f0f0;
+            --select-bg: rgba(255, 255, 255, 0.15);
         }
 
         /* Tema Claro */
@@ -102,6 +104,8 @@
             --dropdown-item-hover-bg: rgba(0, 0, 0, 0.1);
             --dropdown-item-text: #333;
             --dropdown-item-active-bg: rgba(51, 176, 51, 0.4); /* Accent color for active item */
+            --select-text: #333;
+            --select-bg: rgba(255, 255, 255, 0.6);
         }
 
         /* Estilos generales */
@@ -1145,6 +1149,27 @@
             background-size: 0.6em;
             filter: invert(1);
         }
+
+        /* Select y option visibility en dark/light mode */
+        select, select.form-select {
+            color: var(--select-text) !important;
+            background-color: var(--select-bg) !important;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23f0f0f0' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e") !important;
+        }
+        
+        body.light-mode select, body.light-mode select.form-select {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23333' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e") !important;
+        }
+
+        select option {
+            background-color: #1a1a1a;
+            color: #f0f0f0;
+        }
+
+        body.light-mode select option {
+            background-color: #fff;
+            color: #333;
+        }
     </style>
 </head>
 <body>
@@ -1169,7 +1194,7 @@
         <div class="container-fluid d-flex justify-content-between align-items-center">
 
             <div id="navbarTitleSection" class="d-flex align-items-center">
-                <a class="navbar-brand-item" id="fullTitle" href="#" onclick="mostrarPanel('dashboard')"><i class="bi bi-box-seam-fill"></i> <span><span class="brand-indupak">Indupak</span> <span class="brand-Logística">Logística</span></span></a>
+                <a class="navbar-brand-item" id="fullTitle" href="#" onclick="mostrarPanel('dashboard')"><i class="bi bi-box-seam-fill"></i> <span><span class="brand-indupak">Indupak</span> <span class="brand-Logística">Logística</span></span> <span class="badge bg-success ms-2" style="font-size:0.65rem;">v2.0</span></a>
             </div>
 
             <div id="navbarNavSection" class="d-flex align-items-center">
@@ -1517,7 +1542,7 @@
                     </div>
                     <div class="card-body d-flex justify-content-center align-items-center">
                         <button class="btn btn-info btn-lg" data-bs-toggle="modal" data-bs-target="#modalVersionInfo">
-                            <i class="bi bi-info-circle-fill me-2"></i> Ver Versión
+                            <i class="bi bi-info-circle-fill me-2"></i> Ver Versión v2.0
                         </button>
                     </div>
                 </div>
@@ -1573,13 +1598,14 @@
                 </div>
                 <div class="card-body">
                     <!-- Agregar ítems -->
-                    <div class="d-flex gap-2 mb-3 flex-wrap">
+                    <div class="d-flex gap-2 mb-3 flex-wrap" style="position: sticky; top: 0; background: var(--card-bg); padding: 1rem 0; z-index: 100; backdrop-filter: blur(10px); border-bottom: 1px solid var(--input-border); margin: 0 -1rem 1rem -1rem; padding-left: 1rem; padding-right: 1rem;">
                         <button class="btn btn-sm btn-outline-success" onclick="controlAgregarItemChecklist()">
                             <i class="bi bi-check2-square"></i> Agregar Checklist
                         </button>
-                        <button class="btn btn-sm btn-outline-info" onclick="controlAgregarItemArticulo()">
+                        <button class="btn btn-sm btn-outline-info" onclick="controlAbrirModalArticulos()">
                             <i class="bi bi-box-seam"></i> Agregar Artículo
                         </button>
+                        <small class="text-muted ms-auto mt-2">💡 Arrastrá los ítems para reordenarlos</small>
                     </div>
                     <!-- Lista de ítems del formulario -->
                     <div id="control-editor-items" class="d-flex flex-column gap-2"></div>
@@ -1662,6 +1688,34 @@
         </div>
 
     </main>
+
+    <!-- Modal: Seleccionar Artículos para Control -->
+    <div class="modal fade" id="controlArticulosModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content" style="background: var(--modal-body-bg); border: 1px solid var(--input-border);">
+                <div class="modal-header" style="background: var(--modal-header-bg); border-bottom: 1px solid var(--input-border);">
+                    <h5 class="modal-title"><i class="bi bi-box-seam me-2"></i>Seleccionar Artículos</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Barra de búsqueda -->
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="controlArticulosSearch" placeholder="🔍 Buscar artículos..."
+                            oninput="controlFiltrarArticulosModal()">
+                    </div>
+                    <!-- Lista de artículos con checkboxes -->
+                    <div id="controlArticulosLista" class="d-flex flex-column gap-2" style="max-height: 400px; overflow-y: auto;">
+                    </div>
+                </div>
+                <div class="modal-footer" style="background: var(--modal-footer-bg); border-top: 1px solid var(--input-border);">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="controlAgregarArticulosSeleccionados()">
+                        <i class="bi bi-plus-circle"></i> Agregar Seleccionados
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Alerta Flotante para Stock Bajo -->
 
@@ -1999,32 +2053,47 @@
 
     <!-- Modal de Información de Versión -->
     <div class="modal fade" id="modalVersionInfo" tabindex="-1" aria-labelledby="modalVersionInfoLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="modalVersionInfoLabel"><i class="bi bi-info-circle-fill"></i> Información del Sistema</h5>
+                    <h5 class="modal-title" id="modalVersionInfoLabel"><i class="bi bi-info-circle-fill"></i> Información del Sistema - v2.0</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="lead text-center">Estás usando la versión 1.2 del sistema de logística de Indupak</p>
-                    <p class="text-center text-muted">(¡Sí! Cada vez más útil, menos molesto)</p>
+                    <p class="lead text-center">🎉 Estás usando la versión <strong>2.0</strong> del sistema de logística de Indupak</p>
+                    <p class="text-center text-muted">(¡Totalmente rediseñado con nuevas funcionalidades!)</p>
                     <hr class="my-3" style="border-color: rgba(255,255,255,0.2);">
-                    <p>Esta versión trae varias mejoras que veníamos deseando hace tiempo. Algunas ya nos estaban sacando canas verdes, así que tomamos cartas en el asunto:</p>
+                    
+                    <h6 class="mt-4 mb-3"><i class="bi bi-star-fill text-warning me-2"></i>Nuevas características en v2.0:</h6>
                     <ul>
-                        <li>En la sección <strong>Proveedores</strong> ahora tenés <strong>nuevos filtros</strong> para buscar más rápido y con precisión quirúrgica.</li>
-
-
-                        <li>Hablando del buscador… corregimos ese error molesto que hacía que la búsqueda quedara activa aunque cerraras el panel. (Sí, ya podes buscar tranquilo.)</li>
-                        <li>A los proveedores ahora podés ponerles una <strong>descripción y una dirección</strong>. Ideal para saber quién es quién sin tener que andar adivinando.</li>
-                        <li>¿Notaste que algunas tablas parecían de otra web? Bueno, por fin unificamos el diseño de las <strong>tablas de configuración</strong>. Chau fondo blanco descolgado.</li>
-                        <li>El menú tipo carrusel ya era un dolor de cabeza. Lo cambiamos por un <strong>menú desplegable</strong> mucho más ágil. Navegar ahora es cosa seria.</li>
-                        <li>¡Estrenamos la sección <strong>Faltantes</strong>! Acá podés agregar, editar o eliminar productos que están bajos de stock y ver todo en tiempo real. Sí, en tiempo real. Como debe ser.</li>
-
-                        <li><strong>Rediseñamos el dashboard</strong> para integrar esta nueva sección y hacerlo mucho más informativo. Ahora te da una vista general más clara, sin marearte.</li>
-                        <li>Y lo mejor: <strong>¡el dashboard ahora es interactivo!</strong> Podés tocar los botones y usarlos como atajos directos a cada sección. Más práctico, imposible.</li>
-
+                        <li><strong>🆕 MÓDULO CONTROL</strong> - ¡La estrella de esta versión!
+                            <ul>
+                                <li>Crea <strong>formularios de control</strong> personalizados</li>
+                                <li>Dos tipos de ítems: <strong>Checklist</strong> (tareas) y <strong>Artículos</strong> (control de stock)</li>
+                                <li><strong>Arrastrar y soltar</strong> para reordenar ítems en el formulario</li>
+                                <li>Modal de búsqueda para <strong>agregar múltiples artículos</strong> rápidamente</li>
+                                <li>Durante la ejecución, registra <strong>novedades</strong> en tiempo real</li>
+                                <li><strong>Resumen automático</strong> con alertas de tareas pendientes, stock bajo y novedades</li>
+                                <li><strong>Historial completo</strong> de todos los controles realizados</li>
+                                <li>Actualiza el inventario automáticamente con los datos del control</li>
+                            </ul>
+                        </li>
+                        <li><strong>⌨️ Botones flotantes sticky</strong> en el editor de formularios - ya no necesitas scrollear hasta arriba</li>
+                        <li><strong>🎨 Corrección de tema oscuro</strong> - Los dropdowns ahora muestran el texto correctamente en modo oscuro</li>
+                        <li><strong>🔤 Visibilidad mejorada</strong> en selectores con mejor contraste en ambos temas</li>
                     </ul>
-                    <p class="text-center mt-4">Seguimos mejorando con vos. Gracias por bancar cada versión.</p>
+
+                    <h6 class="mt-4 mb-3"><i class="bi bi-lightning-fill text-info me-2"></i>Mejoras anteriores (v1.x):</h6>
+                    <ul>
+                        <li>Filtros mejorados en <strong>Proveedores</strong></li>
+                        <li>Descripción y dirección en proveedores</li>
+                        <li>Menú desplegable ágil y eficiente</li>
+                        <li>Sección <strong>Faltantes</strong> con gestión de stock bajo</li>
+                        <li>Dashboard interactivo con atajos directos</li>
+                        <li>Integración completa con Firebase en tiempo real</li>
+                    </ul>
+
+                    <p class="text-center mt-4 text-muted">Seguimos mejorando con vos. Gracias por bancar cada versión. 🚀</p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendido</button>
@@ -5170,6 +5239,76 @@
                 controlRenderizarEditorItems();
             }
 
+            let controlArticulosSeleccionados = []; // Array para guardar artículos seleccionados en el modal
+
+            window.controlAbrirModalArticulos = function() {
+                controlSincronizarDesdeDOM();
+                controlArticulosSeleccionados = [];
+                controlRenderizarListaArticulosModal();
+                const modal = new bootstrap.Modal(document.getElementById('controlArticulosModal'));
+                modal.show();
+            }
+
+            function controlRenderizarListaArticulosModal() {
+                const container = document.getElementById('controlArticulosLista');
+                container.innerHTML = '';
+                const termino = document.getElementById('controlArticulosSearch').value.toLowerCase();
+                
+                const articulosFiltrados = inventarioData.filter(a =>
+                    a.nombre.toLowerCase().includes(termino) ||
+                    (a.codigo && a.codigo.toLowerCase().includes(termino))
+                );
+
+                if (articulosFiltrados.length === 0) {
+                    container.innerHTML = '<div class="text-center text-muted py-4"><p>Sin resultados</p></div>';
+                    return;
+                }
+
+                articulosFiltrados.forEach(art => {
+                    const checked = controlArticulosSeleccionados.includes(art.id);
+                    const div = document.createElement('div');
+                    div.className = 'form-check p-2';
+                    div.style.background = 'var(--input-bg)';
+                    div.style.borderRadius = '0.5rem';
+                    div.style.borderLeft = checked ? '3px solid var(--accent-color)' : '3px solid transparent';
+                    div.innerHTML = `
+                        <input class="form-check-input" type="checkbox" id="art-${art.id}"
+                            ${checked ? 'checked' : ''}
+                            onchange="controlToggleArticuloSeleccionado('${art.id}')">
+                        <label class="form-check-label w-100 cursor-pointer" for="art-${art.id}">
+                            <strong>${art.nombre}</strong>
+                            <br>
+                            <small class="text-muted">Stock actual: ${art.cantidadActual} | Mínimo: ${art.stockMinimo}</small>
+                        </label>
+                    `;
+                    container.appendChild(div);
+                });
+            }
+
+            window.controlToggleArticuloSeleccionado = function(articuloId) {
+                const idx = controlArticulosSeleccionados.indexOf(articuloId);
+                if (idx > -1) {
+                    controlArticulosSeleccionados.splice(idx, 1);
+                } else {
+                    controlArticulosSeleccionados.push(articuloId);
+                }
+                controlRenderizarListaArticulosModal();
+            }
+
+            window.controlFiltrarArticulosModal = function() {
+                controlRenderizarListaArticulosModal();
+            }
+
+            window.controlAgregarArticulosSeleccionados = function() {
+                controlSincronizarDesdeDOM();
+                controlArticulosSeleccionados.forEach(articuloId => {
+                    controlEditorItems.push({ tipo: 'articulo', articuloId, id: Date.now() + Math.random() });
+                });
+                controlRenderizarEditorItems();
+                bootstrap.Modal.getInstance(document.getElementById('controlArticulosModal')).hide();
+                controlArticulosSeleccionados = [];
+            }
+
             window.controlAgregarItemArticulo = function() {
                 controlSincronizarDesdeDOM();
                 controlEditorItems.push({ tipo: 'articulo', articuloId: '', id: Date.now() + Math.random() });
@@ -5195,9 +5334,55 @@
                     const div = document.createElement('div');
                     div.className = 'card p-2';
                     div.style.background = 'var(--card-bg)';
+                    div.draggable = true;
+                    div.dataset.dragIdx = idx;
+                    div.style.cursor = 'grab';
+                    
+                    // Drag events
+                    div.addEventListener('dragstart', e => {
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/html', e.currentTarget);
+                        div.style.opacity = '0.5';
+                    });
+                    div.addEventListener('dragend', () => {
+                        div.style.opacity = '1';
+                        document.querySelectorAll('#control-editor-items .card').forEach(c => c.style.borderTop = '');
+                    });
+                    div.addEventListener('dragover', e => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        if (div.dataset.dragIdx != e.dataTransfer.getData('text/html')) {
+                            div.style.borderTop = '2px solid var(--accent-color)';
+                        }
+                    });
+                    div.addEventListener('dragleave', () => {
+                        div.style.borderTop = '';
+                    });
+                    div.addEventListener('drop', e => {
+                        e.preventDefault();
+                        const draggedIdx = parseInt(document.querySelector('#control-editor-items .card[style*="opacity"]')?.dataset.dragIdx || -1);
+                        if (draggedIdx !== -1 && draggedIdx !== idx) {
+                            // Reordenar array
+                            const temp = controlEditorItems[draggedIdx];
+                            if (draggedIdx < idx) {
+                                for (let i = draggedIdx; i < idx; i++) {
+                                    controlEditorItems[i] = controlEditorItems[i + 1];
+                                }
+                            } else {
+                                for (let i = draggedIdx; i > idx; i--) {
+                                    controlEditorItems[i] = controlEditorItems[i - 1];
+                                }
+                            }
+                            controlEditorItems[idx] = temp;
+                            controlRenderizarEditorItems();
+                        }
+                        div.style.borderTop = '';
+                    });
+                    
                     if (item.tipo === 'checklist') {
                         div.innerHTML = `
                             <div class="d-flex align-items-center gap-2">
+                                <span class="cursor-grab me-1" style="font-size:0.9rem; opacity:0.5;" title="Arrastrá para reordenar">⋮⋮</span>
                                 <span class="badge bg-success flex-shrink-0"><i class="bi bi-check2-square"></i> Checklist</span>
                                 <input type="text" class="form-control form-control-sm flex-grow-1"
                                     placeholder="Nombre de la tarea..."
@@ -5206,13 +5391,13 @@
                                     oninput="controlEditorItems[${idx}].tarea = this.value">
                                 <button class="btn btn-sm btn-outline-danger flex-shrink-0" onclick="controlEliminarItemEditor(${idx})"><i class="bi bi-x"></i></button>
                             </div>`;
-                        // No se agrega data-item-idx porque no tiene campo de texto
                     } else {
                         const opciones = inventarioData.map(a =>
                             `<option value="${a.id}" ${a.id === item.articuloId ? 'selected' : ''}>${a.nombre}</option>`
                         ).join('');
                         div.innerHTML = `
                             <div class="d-flex align-items-center gap-2">
+                                <span class="cursor-grab me-1" style="font-size:0.9rem; opacity:0.5;" title="Arrastrá para reordenar">⋮⋮</span>
                                 <span class="badge bg-info text-dark"><i class="bi bi-box-seam"></i> Artículo</span>
                                 <select class="form-select form-select-sm flex-grow-1" data-item-idx="${idx}">
                                     <option value="">Seleccione un artículo...</option>

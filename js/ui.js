@@ -236,8 +236,18 @@ export function hideLoadingScreen() {
 
     const dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
     const dia = dias[new Date().getDay()];
+    const greetingTemplates = [
+        d => `¡Ey, feliz ${d}!`,
+        d => `¡Hola! Feliz ${d}`,
+        d => `¡Feliz ${d}!!`,
+        d => `¡Buen ${d}!!`,
+        d => `¡${d.charAt(0).toUpperCase() + d.slice(1)} con todo!`,
+        d => `¡Que sea un gran ${d}!`,
+        d => `¡Buenas, feliz ${d}!`,
+    ];
+    const greeting = greetingTemplates[Math.floor(Math.random() * greetingTemplates.length)](dia);
     const greetingEl = document.getElementById('loading-day-greeting');
-    if (greetingEl) greetingEl.textContent = `¡Feliz ${dia}!`;
+    if (greetingEl) greetingEl.textContent = greeting;
 
     const msgs  = document.getElementById('loading-messages');
     const ready = document.getElementById('loading-ready');

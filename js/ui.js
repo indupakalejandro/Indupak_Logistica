@@ -239,8 +239,8 @@ export function hideLoadingScreen() {
     const greetingTemplates = [
         d => `¡Ey, feliz ${d}!`,
         d => `¡Hola! Feliz ${d}`,
-        d => `¡Feliz ${d}!!`,
-        d => `¡Buen ${d}!!`,
+        d => `¡Feliz ${d}!`,
+        d => `¡Buen ${d}!`,
         d => `¡${d.charAt(0).toUpperCase() + d.slice(1)} con todo!`,
         d => `¡Que sea un gran ${d}!`,
         d => `¡Buenas, feliz ${d}!`,

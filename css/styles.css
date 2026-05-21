@@ -761,11 +761,10 @@
             filter: none;
         }
 
-        /* Theme Toggle Button (animado) */
-        .theme-toggle {
+        /* Corner buttons (theme toggle + config) */
+        .corner-btn {
             position: fixed;
             top: 0.5rem;
-            right: 0.5rem;
             background: var(--button-bg);
             border: 1px solid var(--input-border);
             border-radius: 50%;
@@ -782,16 +781,18 @@
             pointer-events: none;
             transition: opacity 0.3s ease-out, transform 0.3s ease-out;
         }
-        .theme-toggle.show {
+        #themeToggle { right: 0.5rem; top: 0.5rem; }
+        #configToggle { right: 0.5rem; top: 3.5rem; transition-delay: 0.05s; font-size: 1.05rem; color: var(--text-color); }
+        .corner-btn.show {
             opacity: 1;
             transform: translateY(0);
             pointer-events: auto;
         }
-        .theme-toggle:hover {
+        .corner-btn.show:hover {
             background: var(--button-hover-bg);
             transform: translateY(-2px);
         }
-        .theme-toggle svg {
+        .corner-btn svg {
             width: 22px;
             height: 22px;
             fill: var(--text-color);
@@ -801,8 +802,8 @@
             position: fixed;
             top: 0;
             right: 0;
-            width: 120px;
-            height: 120px;
+            width: 110px;
+            height: 170px;
             z-index: 1031;
             pointer-events: auto;
         }

@@ -39,6 +39,7 @@ const panelDisplayNames = {
     'faltantes': 'Faltantes',
     'pagos': 'Pagos',
     'control': 'Control',
+    'termos': '<i class="bi bi-rulers"></i> Termo',
     'configuracion': 'Configuración'
 };
 
@@ -239,8 +240,8 @@ export function hideLoadingScreen() {
     const greetingTemplates = [
         d => `¡Ey, feliz ${d}!`,
         d => `¡Hola! Feliz ${d}`,
-        d => `¡Feliz ${d}!`,
-        d => `¡Buen ${d}!`,
+        d => `¡Feliz ${d}!!`,
+        d => `¡Buen ${d}!!`,
         d => `¡${d.charAt(0).toUpperCase() + d.slice(1)} con todo!`,
         d => `¡Que sea un gran ${d}!`,
         d => `¡Buenas, feliz ${d}!`,
@@ -357,6 +358,9 @@ function updateSearchFilterOptions(panelId) {
     } else if (panelId === 'pagos') {
         select.innerHTML += '<option value="proveedorPlasticoPago">Proveedor</option>';
         state.currentSearchFilter = 'proveedorPlasticoPago';
+    } else if (panelId === 'termos') {
+        select.innerHTML += '<option value="none">Sin filtro</option>';
+        state.currentSearchFilter = 'none';
     } else if (panelId === 'dashboard') {
         select.innerHTML += '<option value="none">Sin filtro</option>';
         state.currentSearchFilter = 'none';
@@ -377,6 +381,7 @@ window.mostrarPanel = function(panelId, event) {
     document.getElementById('panel-faltantes').style.display = 'none';
     document.getElementById('panel-pagos').style.display = 'none';
     document.getElementById('panel-control').style.display = 'none';
+    document.getElementById('panel-termos').style.display = 'none';
     document.getElementById('panel-configuracion').style.display = 'none';
     // Hide bobinas cart bar when leaving the panel
     const bCartBar = document.getElementById('bobinas-cart-bar');
@@ -427,6 +432,10 @@ window.mostrarPanel = function(panelId, event) {
         document.getElementById('panel-control').style.display = 'block';
         if (document.getElementById('nav-control')) document.getElementById('nav-control').classList.add('active');
         panelHandlers['control']?.();
+    } else if (panelId === 'termos') {
+        document.getElementById('panel-termos').style.display = 'block';
+        if (document.getElementById('nav-termos')) document.getElementById('nav-termos').classList.add('active');
+        panelHandlers['termos']?.();
     } else if (panelId === 'configuracion') {
         document.getElementById('panel-configuracion').style.display = 'block';
         if (document.getElementById('nav-configuracion')) document.getElementById('nav-configuracion').classList.add('active');
@@ -439,17 +448,20 @@ window.mostrarPanel = function(panelId, event) {
 }
 
 export function setupUIListeners() {
-    // Theme Toggle Logic
+    // Corner buttons (theme toggle + config)
+    const configToggleEl = document.getElementById('configToggle');
     let hideThemeToggleTimeout;
 
     const showThemeToggle = () => {
         clearTimeout(hideThemeToggleTimeout);
         if (state.elements.themeToggle) state.elements.themeToggle.classList.add('show');
+        if (configToggleEl) configToggleEl.classList.add('show');
     };
 
     const hideThemeToggle = () => {
         hideThemeToggleTimeout = setTimeout(() => {
             if (state.elements.themeToggle) state.elements.themeToggle.classList.remove('show');
+            if (configToggleEl) configToggleEl.classList.remove('show');
         }, 200);
     };
 
@@ -457,6 +469,8 @@ export function setupUIListeners() {
     if (state.elements.themeToggleHotspot) state.elements.themeToggleHotspot.addEventListener('mouseleave', hideThemeToggle);
     if (state.elements.themeToggle) state.elements.themeToggle.addEventListener('mouseenter', showThemeToggle);
     if (state.elements.themeToggle) state.elements.themeToggle.addEventListener('mouseleave', hideThemeToggle);
+    if (configToggleEl) configToggleEl.addEventListener('mouseenter', showThemeToggle);
+    if (configToggleEl) configToggleEl.addEventListener('mouseleave', hideThemeToggle);
 
     if (state.elements.themeToggle) {
         state.elements.themeToggle.addEventListener('click', () => {

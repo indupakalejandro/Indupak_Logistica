@@ -227,7 +227,7 @@ export function renderMonthlyKilosChart(containerEl, legendEl) {
 
     const parentWidth  = container.clientWidth;
     const parentHeight = container.clientHeight;
-    const margin = { top: 16, right: 16, bottom: 56, left: 52 };
+    const margin = { top: 28, right: 16, bottom: 56, left: 52 };
     const width  = parentWidth  - margin.left - margin.right;
     const height = parentHeight - margin.top  - margin.bottom;
 
@@ -238,8 +238,10 @@ export function renderMonthlyKilosChart(containerEl, legendEl) {
         .attr("transform", `translate(${margin.left},${margin.top})`);
 
     const x = d3.scaleBand().domain(months).range([0, width]).padding(0.3);
+    const monthTotals = matrix.map(row => activeIds.reduce((sum, id) => sum + (row[id] || 0), 0));
+
     const y = d3.scaleLinear()
-        .domain([0, d3.max(series, s => d3.max(s, d => d[1])) * 1.12])
+        .domain([0, d3.max(series, s => d3.max(s, d => d[1])) * 1.20])
         .range([height, 0]);
 
     svg.append("g").attr("class","x axis")
@@ -284,4 +286,18 @@ export function renderMonthlyKilosChart(containerEl, legendEl) {
                 tooltip.transition().duration(400).style("opacity", 0);
             });
     });
+
+    // Total labels above each stacked bar
+    svg.selectAll('.bar-total')
+        .data(months)
+        .enter().append('text')
+        .attr('class', 'bar-total')
+        .attr('x', d => x(d) + x.bandwidth() / 2)
+        .attr('y', (d, i) => monthTotals[i] > 0 ? y(monthTotals[i]) - 5 : 0)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '11px')
+        .attr('font-weight', '600')
+        .attr('fill', 'var(--text-color)')
+        .attr('opacity', '0.85')
+        .text((d, i) => monthTotals[i] > 0 ? d3.format(',')(monthTotals[i]) : '');
 }

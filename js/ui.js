@@ -1,4 +1,4 @@
-import { state } from './state.js';
+    import { state } from './state.js';
 
 // --- Custom Alert and Confirm Modals ---
 let currentConfirmCallback = null;
@@ -240,8 +240,8 @@ export function hideLoadingScreen() {
     const greetingTemplates = [
         d => `¡Ey, feliz ${d}!`,
         d => `¡Hola! Feliz ${d}`,
-        d => `¡Feliz ${d}!!`,
-        d => `¡Buen ${d}!!`,
+        d => `¡Feliz ${d}!`,
+        d => `¡Buen ${d}!`,
         d => `¡${d.charAt(0).toUpperCase() + d.slice(1)} con todo!`,
         d => `¡Que sea un gran ${d}!`,
         d => `¡Buenas, feliz ${d}!`,

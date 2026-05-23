@@ -349,6 +349,14 @@ function setupRealtimeListeners() {
         console.error("Error fetching faltantes:", error);
         window.showAlert("Error al cargar los artículos faltantes. Por favor, recargue la página.");
     });
+
+    // Control Historial Listener (not part of loading progress)
+    onSnapshot(getUserCollection('controlHistorial'), (snapshot) => {
+        state.controlHistorialData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (state.currentActivePanel === 'dashboard') {
+            renderizarDashboard();
+        }
+    });
 }
 
 // --- Initialize Firebase ---

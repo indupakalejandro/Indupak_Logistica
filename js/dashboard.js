@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { getUserCollection, doc, updateDoc } from './firebase.js';
 
 // Paleta de colores para proveedores
 const SUPPLIER_COLORS = ['#60D040','#9060e0','#fd7e14','#20c997','#e83e8c','#0dcaf0','#ffc107','#6610f2'];
@@ -125,8 +126,7 @@ function renderDashboardNovedades() {
         fechaEl.textContent = f.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
     }
 
-    let resolved = new Set();
-    try { resolved = new Set(JSON.parse(localStorage.getItem(`nv_res_${ctrlId}`) || '[]')); } catch(e) {}
+    const resolved = new Set(ultima.novedadesResueltas || []);
 
     const rows = [];
     conNovedades.forEach(it => {
@@ -147,12 +147,21 @@ function renderDashboardNovedades() {
         </div>`).join('');
 }
 
-window.toggleNovedad = function(ctrlId, key) {
-    let resolved = new Set();
-    try { resolved = new Set(JSON.parse(localStorage.getItem(`nv_res_${ctrlId}`) || '[]')); } catch(e) {}
+window.toggleNovedad = async function(ctrlId, key) {
+    const entry = state.controlHistorialData.find(d => d.id === ctrlId);
+    if (!entry) return;
+    const resolved = new Set(entry.novedadesResueltas || []);
     if (resolved.has(key)) resolved.delete(key); else resolved.add(key);
-    localStorage.setItem(`nv_res_${ctrlId}`, JSON.stringify([...resolved]));
+    const newResolved = [...resolved];
+    // Optimistic update: renders instantly for this session
+    entry.novedadesResueltas = newResolved;
     renderDashboardNovedades();
+    // Firestore write: triggers onSnapshot on all other connected sessions
+    try {
+        await updateDoc(doc(getUserCollection('controlHistorial'), ctrlId), { novedadesResueltas: newResolved });
+    } catch(e) {
+        console.error('Error guardando estado de novedad:', e);
+    }
 };
 
 /**

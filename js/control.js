@@ -41,9 +41,7 @@ export function setupControlListeners() {
         state.controlFormulariosData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         if (state.currentActivePanel === 'control') controlMostrarLista();
     });
-    onSnapshot(getUserCollection('controlHistorial'), snap => {
-        state.controlHistorialData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    });
+    // controlHistorial listener moved to app.js so it can trigger dashboard re-render
 }
 
 // ---- Navegación entre vistas ----

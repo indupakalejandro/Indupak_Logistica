@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { getUserCollection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot } from './firebase.js';
+import { getUserCollection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, writeBatch } from './firebase.js';
 
 // ---- Local state for article selection modal ----
 let controlArticulosSeleccionados = [];
@@ -502,12 +502,14 @@ window.controlCompletarEjecucion = async function() {
     }
 
     try {
-        for (const it of items) {
-            if (it.tipo === 'articulo' && it.articuloId) {
-                const nuevaCantidad = Number(it.cantidadContada);
+        const articulosAActualizar = items.filter(it => it.tipo === 'articulo' && it.articuloId);
+        if (articulosAActualizar.length > 0) {
+            const batch = writeBatch(state.db);
+            articulosAActualizar.forEach(it => {
                 const artRef = doc(getUserCollection('inventario'), it.articuloId);
-                await updateDoc(artRef, { cantidadActual: nuevaCantidad });
-            }
+                batch.update(artRef, { cantidadActual: Number(it.cantidadContada) });
+            });
+            await batch.commit();
         }
     } catch (e) {
         console.error(e);

@@ -321,43 +321,99 @@
     <!-- ══════════ PANEL STOCK BOBINAS ══════════ -->
     <main id="panel-bobinas" class="container mt-4" style="display: none;">
 
-        <!-- Barra de controles -->
-        <div class="card mb-3">
-            <div class="card-body py-2 px-3">
-                <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <button class="btn btn-secondary btn-sm" onclick="bobinasAbrirManual()">
-                        <i class="bi bi-arrow-left-right me-1"></i>Movimiento Manual
+        <!-- Tabs de Stock Bobinas -->
+        <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+            <ul class="nav nav-pills gap-1 mb-0" id="bobinas-nav-tabs">
+                <li class="nav-item">
+                    <button class="nav-link active" id="tab-btn-bobinas-pendientes" onclick="switchBobinasTab('pendientes')">
+                        <i class="bi bi-clock-history me-1"></i>Solicitudes Pendientes
+                        <span class="badge bg-warning text-dark ms-1" id="bobinas-pendientes-count" style="display:none;">0</span>
                     </button>
-                    <button class="btn btn-secondary btn-sm" onclick="bobinasVerHistorial()">
-                        <i class="bi bi-clock-history me-1"></i>Historial
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="tab-btn-bobinas-lista" onclick="switchBobinasTab('lista')">
+                        <i class="bi bi-collection-fill me-1"></i>Lista de Bobinas
                     </button>
-                    <button class="btn btn-primary btn-sm ms-auto" data-bs-toggle="modal"
-                        data-bs-target="#modalBobinaAgregar" onclick="bobinasPreparaNueva()">
-                        <i class="bi bi-plus-circle me-1"></i>Agregar Bobina
+                </li>
+            </ul>
+        </div>
+
+        <!-- SECCIÓN 1: Solicitudes Pendientes (Pestaña Principal) -->
+        <div id="bobinas-section-pendientes">
+            <div class="card mb-3">
+                <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-info-circle text-info"></i>
+                        <span class="small text-muted">Recordatorio de trabajos solicitados y exportados en PDF. Podés eliminarlos cuando quieras sin registrar en ningún historial.</span>
+                    </div>
+                    <button class="btn btn-outline-danger btn-sm py-1 px-2" id="bobinas-btn-limpiar-pendientes" onclick="bobinasLimpiarTodasPendientes()" style="display:none;">
+                        <i class="bi bi-trash3 me-1"></i>Limpiar Todo
                     </button>
                 </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Fecha / Hora</th>
+                                    <th>Artículos Solicitados</th>
+                                    <th>Cliente</th>
+                                    <th>Depósito</th>
+                                    <th class="text-end">Metros Totales</th>
+                                    <th class="text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bobinas-pendientes-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer text-muted text-center" id="bobinas-pendientes-footer">0 solicitudes pendientes.</div>
             </div>
         </div>
 
-        <!-- Tabla de inventario -->
-        <div class="card">
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th class="sortable-header">Artículo</th>
-                                <th class="sortable-header">Material</th>
-                                <th class="text-end sortable-header">Metros</th>
-                                <th class="text-end sortable-header">Kilos</th>
-                                <th class="text-center">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="bobinas-tabla-body"></tbody>
-                    </table>
+        <!-- SECCIÓN 2: Lista de Bobinas -->
+        <div id="bobinas-section-lista" style="display:none;">
+            <!-- Barra de controles -->
+            <div class="card mb-3">
+                <div class="card-body py-2 px-3">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <button class="btn btn-secondary btn-sm" onclick="bobinasAbrirManual()">
+                            <i class="bi bi-arrow-left-right me-1"></i>Movimiento Manual
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="bobinasVerHistorial()">
+                            <i class="bi bi-clock-history me-1"></i>Historial
+                        </button>
+                        <button class="btn btn-primary btn-sm ms-auto" data-bs-toggle="modal"
+                            data-bs-target="#modalBobinaAgregar" onclick="bobinasPreparaNueva()">
+                            <i class="bi bi-plus-circle me-1"></i>Agregar Bobina
+                        </button>
+                    </div>
                 </div>
             </div>
-            <div class="card-footer text-muted text-center" id="bobinas-footer">Cargando...</div>
+
+            <!-- Tabla de inventario -->
+            <div class="card">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="sortable-header">Artículo</th>
+                                    <th class="sortable-header">Material</th>
+                                    <th class="text-end sortable-header">Metros</th>
+                                    <th class="text-end sortable-header">Kilos</th>
+                                    <th class="text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bobinas-tabla-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer text-muted text-center" id="bobinas-footer">Cargando...</div>
+            </div>
         </div>
     </main>
 
@@ -380,6 +436,7 @@
                                 <option value="Virgen Opalino">Virgen Opalino</option>
                                 <option value="Virgen Cristal">Virgen Cristal</option>
                                 <option value="Caramelo">Caramelo</option>
+                                <option value="Negro">Negro</option>
                             </select>
                         </div>
                         <div class="row g-3 mb-3">
@@ -446,6 +503,7 @@
                                 <option value="Virgen Opalino">Virgen Opalino</option>
                                 <option value="Virgen Cristal">Virgen Cristal</option>
                                 <option value="Caramelo">Caramelo</option>
+                                <option value="Negro">Negro</option>
                             </select>
                         </div>
                         <div class="row g-3 mb-3">
@@ -482,77 +540,32 @@
         </div>
     </div>
 
-    <!-- ══════════ MODAL: Sacar Bobina ══════════ -->
-    <div class="modal fade" id="modalBobinaSacar" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="bi bi-send-fill me-2"></i>Sacar:
-                        <span id="bobinas-sacar-nombre" class="fw-normal" style="color:var(--accent-color)"></span>
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="text-muted small mb-3" id="bobinas-sacar-disponibles"></p>
-                    <form id="bobinas-form-sacar">
-                        <div class="mb-3">
-                            <label class="form-label">Metros a Sacar</label>
-                            <input type="number" id="b-sacar-metros" class="form-control" step="0.01"
-                                placeholder="Cantidad de metros a retirar" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Cliente</label>
-                            <input type="text" id="b-sacar-cliente" class="form-control"
-                                placeholder="Nombre del cliente" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Depósito</label>
-                            <select id="b-sacar-deposito" class="form-select" required>
-                                <option value="">Seleccioná un depósito</option>
-                                <option value="Depósito de confección">Depósito de confección</option>
-                                <option value="Depósito de impresión">Depósito de impresión</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Observación <span class="text-muted">(opcional)</span></label>
-                            <textarea id="b-sacar-obs" class="form-control" rows="2"
-                                placeholder="Ej. Envío #123"></textarea>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-danger" onclick="bobinasConfirmarSacar()">
-                        <i class="bi bi-send-fill me-1"></i>Confirmar Salida
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ══════════ MODAL: Movimiento Manual ══════════ -->
+    <!-- ══════════ MODAL: Movimiento / Solicitud de Bobinas (Unificado) ══════════ -->
     <div class="modal fade" id="modalBobinaManual" tabindex="-1">
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-arrow-left-right me-2"></i>Movimiento Manual de Bobinas</h5>
+                    <h5 class="modal-title" id="modalBobinaManualTitle"><i class="bi bi-arrow-left-right me-2"></i>Movimiento Manual de Bobinas</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <form id="bobinas-form-manual">
+                        <input type="hidden" id="b-manual-origen-id">
                         <div class="row g-4">
                             <!-- ORIGEN -->
                             <div class="col-md-5">
                                 <div class="card h-100">
-                                    <div class="card-header text-center fw-semibold">Origen</div>
+                                    <div class="card-header text-center fw-semibold d-flex justify-content-between align-items-center">
+                                        <span>Origen</span>
+                                        <span id="b-manual-stock-disponible-badge" class="badge bg-info text-dark" style="display:none;"></span>
+                                    </div>
                                     <div class="card-body">
                                         <div class="row g-2 mb-2">
                                             <div class="col">
                                                 <label class="form-label small">Depósito de Origen</label>
                                                 <select id="b-manual-origen-deposito" class="form-select form-select-sm">
-                                                    <option>Depósito General</option>
-                                                    <option>Depósito de Confección</option>
+                                                    <option value="Depósito General">Depósito General</option>
+                                                    <option value="Depósito de Confección">Depósito de Confección</option>
                                                 </select>
                                             </div>
                                             <div class="col">
@@ -564,6 +577,7 @@
                                                     <option value="Virgen Opalino">Virgen Opalino</option>
                                                     <option value="Virgen Cristal">Virgen Cristal</option>
                                                     <option value="Caramelo">Caramelo</option>
+                                                    <option value="Negro">Negro</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -591,9 +605,9 @@
                                         </div>
                                         <div class="row g-2">
                                             <div class="col">
-                                                <label class="form-label small">Metros</label>
+                                                <label class="form-label small">Metros a retirar</label>
                                                 <input type="number" id="b-manual-origen-metros" class="form-control form-control-sm" step="0.01"
-                                                    oninput="bobinasCalcularKilosManual()">
+                                                    oninput="bobinasCalcularKilosManual()" required>
                                             </div>
                                             <div class="col">
                                                 <label class="form-label small">Kilos (calculado)</label>
@@ -619,8 +633,8 @@
                                             <div class="col">
                                                 <label class="form-label small">Depósito de Destino</label>
                                                 <select id="b-manual-destino-deposito" class="form-select form-select-sm">
-                                                    <option>Depósito de Confección</option>
-                                                    <option>Depósito de Impresión</option>
+                                                    <option value="Depósito de Confección">Depósito de Confección</option>
+                                                    <option value="Depósito de Impresión">Depósito de Impresión</option>
                                                 </select>
                                             </div>
                                             <div class="col">
@@ -663,6 +677,23 @@
                     <button type="button" class="btn btn-primary" onclick="bobinasConfirmarManual()">
                         <i class="bi bi-cart-plus me-1"></i>Agregar al Carrito
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════ MODAL: Detalle de Solicitud Pendiente ══════════ -->
+    <div class="modal fade" id="modalBobinaDetallePendiente" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalBobinaDetallePendienteTitle"><i class="bi bi-file-earmark-text me-2"></i>Detalle de Solicitud</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="modalBobinaDetallePendienteBody">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                 </div>
             </div>
         </div>

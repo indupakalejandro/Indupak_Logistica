@@ -374,6 +374,8 @@ function updateSearchFilterOptions(panelId) {
 window.mostrarPanel = function(panelId, event) {
     if (event && event.detail === 0) return;
 
+    state.currentActivePanel = panelId;
+
     document.getElementById('panel-dashboard').style.display = 'none';
     document.getElementById('panel-insumos').style.display = 'none';
     document.getElementById('panel-contactos').style.display = 'none';

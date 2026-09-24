@@ -17,17 +17,27 @@ export function controlRestaurarDesdeLocal() {
     const guardado = localStorage.getItem('controlEjecucionActual');
     if (guardado) {
         try {
-            state.controlEjecucionActual = JSON.parse(guardado);
-            if (state.currentActivePanel === 'control' && state.controlEjecucionActual) {
-                document.getElementById('control-vista-ejecucion').style.display = 'block';
-                document.getElementById('control-ejecucion-titulo').textContent = state.controlEjecucionActual.nombre;
-                document.getElementById('control-ejecucion-fecha').textContent = new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-                controlRenderizarEjecucion();
+            const parsed = JSON.parse(guardado);
+            if (parsed && parsed.formularioId && Array.isArray(parsed.items) && parsed.items.length > 0) {
+                state.controlEjecucionActual = parsed;
+                if (state.currentActivePanel === 'control') {
+                    controlOcultarVistas();
+                    document.getElementById('control-vista-ejecucion').style.display = 'block';
+                    document.getElementById('control-ejecucion-titulo').textContent = state.controlEjecucionActual.nombre;
+                    document.getElementById('control-ejecucion-fecha').textContent = new Date().toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+                    controlRenderizarEjecucion();
+                }
+            } else {
+                state.controlEjecucionActual = null;
+                controlLimpiarLocal();
             }
         } catch (e) {
             console.error('Error restaurando control:', e);
-            localStorage.removeItem('controlEjecucionActual');
+            state.controlEjecucionActual = null;
+            controlLimpiarLocal();
         }
+    } else {
+        state.controlEjecucionActual = null;
     }
 }
 
@@ -39,7 +49,7 @@ function controlLimpiarLocal() {
 export function setupControlListeners() {
     onSnapshot(getUserCollection('controlFormularios'), snap => {
         state.controlFormulariosData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        if (state.currentActivePanel === 'control') controlMostrarLista();
+        if (state.currentActivePanel === 'control' && !state.controlEjecucionActual) controlMostrarLista();
     });
     // controlHistorial listener moved to app.js so it can trigger dashboard re-render
 }
@@ -61,6 +71,7 @@ window.controlVolverLista = function() {
     state.controlEditorId = null;
     state.controlEditorItems = [];
     state.controlEjecucionActual = null;
+    controlLimpiarLocal();
     controlMostrarLista();
 }
 
@@ -489,7 +500,11 @@ function controlActualizarNovedadesVisualmente(idx) {
 
 window.controlCancelarEjecucion = function() {
     window.showConfirm('¿Cancelar el control en curso? Los datos no serán guardados.', ok => {
-        if (ok) { state.controlEjecucionActual = null; controlMostrarLista(); }
+        if (ok) {
+            state.controlEjecucionActual = null;
+            controlLimpiarLocal();
+            controlMostrarLista();
+        }
     });
 }
 

@@ -37,7 +37,9 @@ export const state = {
     // Bobinas module (separate Firebase project)
     bobinasData: [],
     bobinasHistorialData: [],
-    bobinasCartItems: []
+    bobinasCartItems: [],
+    activeBobinasTab: 'pendientes',
+    bobinasSolicitudesPendientes: []
 };
 
 export const totalCollectionsToLoad = Object.keys(state.dataLoadedFlags).length;

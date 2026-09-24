@@ -11,7 +11,7 @@ import { renderizarTablaFaltantes } from './faltantes.js';
 import { renderizarPanelPagos, actualizarDropdownProveedoresPlastico } from './pagos.js';
 import { setupControlListeners, controlRestaurarDesdeLocal, controlMostrarLista } from './control.js';
 import { renderizarTablaAnalisis } from './analisis.js';
-import { renderizarTablaBobinas, initBobinas, sincronizarCartBar } from './bobinas.js';
+import { renderizarBobinasPanel, initBobinas, sincronizarCartBar } from './bobinas.js';
 import { initTermos } from './termos.js';
 
 // Version information
@@ -61,7 +61,7 @@ panelHandlers['control'] = function() {
 };
 panelHandlers['bobinas'] = function() {
     sincronizarCartBar();
-    renderizarTablaBobinas();
+    renderizarBobinasPanel();
 };
 panelHandlers['termos'] = initTermos;
 panelHandlers['renderMonthlyKilosChart'] = renderMonthlyKilosChart;

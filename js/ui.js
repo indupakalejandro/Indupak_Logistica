@@ -3,10 +3,54 @@ import { state } from './state.js';
 // --- Custom Alert and Confirm Modals ---
 let currentConfirmCallback = null;
 
-export function showAlert(message) {
-    document.getElementById('customAlertModalBody').innerText = message;
-    const alertModal = new bootstrap.Modal(document.getElementById('customAlertModal'));
-    alertModal.show();
+export function showNotification(message, type = 'info', duration = 3500) {
+    let container = document.getElementById('app-toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'app-toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toastEl = document.createElement('div');
+    toastEl.className = 'glass-toast toast align-items-center border-0';
+    toastEl.setAttribute('role', 'alert');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+
+    let iconHtml = '<i class="bi bi-info-circle-fill text-info fs-5 flex-shrink-0"></i>';
+    if (type === 'success') {
+        iconHtml = '<i class="bi bi-check-circle-fill text-success fs-5 flex-shrink-0"></i>';
+    } else if (type === 'danger' || type === 'error') {
+        iconHtml = '<i class="bi bi-exclamation-circle-fill text-danger fs-5 flex-shrink-0"></i>';
+    } else if (type === 'warning') {
+        iconHtml = '<i class="bi bi-exclamation-triangle-fill text-warning fs-5 flex-shrink-0"></i>';
+    }
+
+    toastEl.innerHTML = `
+        <div class="toast-body">
+            ${iconHtml}
+            <div class="flex-grow-1">${message}</div>
+            <button type="button" class="btn-close me-1 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+        </div>
+    `;
+
+    container.appendChild(toastEl);
+    const bsToast = new bootstrap.Toast(toastEl, { autohide: true, delay: duration });
+    bsToast.show();
+    toastEl.addEventListener('hidden.bs.toast', () => {
+        toastEl.remove();
+    });
+}
+window.showNotification = showNotification;
+window.showToast = showNotification;
+
+export function showAlert(message, type = 'info') {
+    if (type === 'info' && /error|fall|inválid|obligatori|no se encontr|complet|negativ/i.test(message)) {
+        type = 'danger';
+    } else if (type === 'info' && /éxito|guardad|correct|actualizad|generad|añadid|cread/i.test(message)) {
+        type = 'success';
+    }
+    showNotification(message, type);
 }
 window.showAlert = showAlert;
 

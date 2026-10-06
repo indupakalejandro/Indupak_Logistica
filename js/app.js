@@ -1,7 +1,7 @@
 import { initFirebase, getUserCollection, onSnapshot } from './firebase.js';
 import { state, totalCollectionsToLoad } from './state.js';
 import { cacheDOMElements, showLoadingScreen, hideLoadingScreen, updateLoadingProgress, panelHandlers, setupUIListeners } from './ui.js';
-import { renderizarDashboard, startDashboardClock, renderMonthlyKilosChart } from './dashboard.js';
+import { renderizarDashboard, startDashboardClock, renderMonthlyKilosChart, renderizarListaComprasDashboard } from './dashboard.js';
 import { renderizarTablaInventario, verificarStockBajo, actualizarDropdownProveedores, actualizarDropdownCategorias, actualizarDropdownUnidadesMedida } from './inventario.js';
 import { renderizarPanelProveedores, actualizarDropdownRoles, setupProviderCardListeners } from './proveedores.js';
 import { renderizarPanelComisionistas, renderLocalidadesCheckboxes } from './comisionistas.js';
@@ -356,6 +356,16 @@ function setupRealtimeListeners() {
         if (state.currentActivePanel === 'dashboard') {
             renderizarDashboard();
         }
+    });
+
+    // Lista de Compras Compartida Listener (not part of loading progress)
+    onSnapshot(getUserCollection('dashboardListaCompras'), (snapshot) => {
+        state.listaComprasData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (state.currentActivePanel === 'dashboard') {
+            renderizarListaComprasDashboard();
+        }
+    }, (error) => {
+        console.error("Error fetching dashboardListaCompras:", error);
     });
 }
 

@@ -40,6 +40,14 @@
             --dropdown-item-active-bg: rgba(96, 208, 64, 0.4); /* Accent color for active item */
             --select-text: #f0f0f0;
             --select-bg: rgba(255, 255, 255, 0.15);
+
+            /* Curvatura continua G2 */
+            --radius-g2-xs: 0.5rem;
+            --radius-g2-sm: 0.75rem;
+            --radius-g2-md: 1rem;
+            --radius-g2-lg: 1.25rem;
+            --radius-g2-xl: 1.5rem;
+            --radius-g2-pill: 9999px;
         }
 
         /* Tema Claro */
@@ -93,6 +101,22 @@
             padding: 0;
             font-family: 'Inter', sans-serif;
             transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, border 0.3s ease, backdrop-filter 0.3s ease;
+        }
+
+        /* Suavizado de esquinas G2 (Continuous Curvature / Squircle) */
+        .g2-rounded,
+        .card,
+        .modal-content,
+        .table,
+        .form-control,
+        .form-select,
+        .btn,
+        .nav-pills .nav-link,
+        .novedades-panel,
+        .chart-container,
+        .glass-toast {
+            -webkit-corner-smoothing: 60%;
+            corner-smoothing: 60%;
         }
 
         body {
@@ -705,51 +729,91 @@
         .contact-list-item:last-child {
             border-bottom: none;
         }
-        /* Estilos de la alerta de stock bajo con tema invertido */
+        /* Contenedor y toasts unificados con efecto transparente en esquina superior derecha */
+        #app-toast-container {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 1090;
+            pointer-events: none;
+            max-width: 420px;
+            width: calc(100% - 40px);
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .glass-toast, #alerta-stock-bajo {
+            pointer-events: auto;
+            position: relative;
+            background-color: var(--alert-bg) !important;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--alert-border) !important;
+            color: var(--alert-text) !important;
+            box-shadow: 0 6px 20px var(--alert-shadow);
+            border-radius: var(--radius-g2-md, 1rem);
+            -webkit-corner-smoothing: 60%;
+            corner-smoothing: 60%;
+            overflow: hidden;
+            animation: toastSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+        }
         #alerta-stock-bajo {
             position: fixed;
             top: 80px;
             right: 20px;
-            z-index: 1050;
-            background-color: var(--alert-bg) !important; /* Usa la variable de alerta */
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            border: 1px solid var(--alert-border) !important; /* Usa la variable de borde de alerta */
-            color: var(--alert-text) !important; /* Usa la variable de texto de alerta */
-            box-shadow: 0 4px 12px var(--alert-shadow); /* Usa la variable de sombra de alerta */
+            z-index: 1080;
         }
-        #alerta-stock-bajo .toast-body {
-            color: inherit !important; /* Hereda el color del texto del contenedor principal de la alerta */
+        @keyframes toastSlideIn {
+            from {
+                opacity: 0;
+                transform: translateX(35px) scale(0.96);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0) scale(1);
+            }
         }
-        /* El botón de cerrar se ajusta automáticamente con el filtro invert */
-        #alerta-stock-bajo .btn-close {
-            filter: invert(1); /* Invertir color para que sea visible en fondo oscuro */
+        .glass-toast .toast-body, #alerta-stock-bajo .toast-body {
+            color: inherit !important;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.85rem 1rem;
         }
-        body.light-mode #alerta-stock-bajo .btn-close {
+        .glass-toast .btn-close, #alerta-stock-bajo .btn-close {
+            filter: invert(1);
+            opacity: 0.75;
+            margin-left: auto;
+        }
+        body.light-mode .glass-toast .btn-close, body.light-mode #alerta-stock-bajo .btn-close {
             filter: none;
+            opacity: 0.75;
         }
 
         .modal-content {
             background-color: var(--modal-body-bg);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border: 1px solid var(--input-border);
             box-shadow: 0 10px 30px var(--shadow-color);
             color: var(--text-color);
-            border-radius: 0.75rem;
+            border-radius: var(--radius-g2-lg, 1.25rem);
+            overflow: hidden;
         }
         .modal-header {
             background-color: var(--modal-header-bg);
             border-bottom: 1px solid var(--input-border);
             color: var(--text-color);
-            border-top-left-radius: 0.75rem;
-            border-top-right-radius: 0.75rem;
+            border-top-left-radius: var(--radius-g2-lg, 1.25rem);
+            border-top-right-radius: var(--radius-g2-lg, 1.25rem);
         }
         .modal-footer {
             background-color: var(--modal-footer-bg);
             border-top: 1px solid var(--input-border);
-            border-bottom-left-radius: 0.75rem;
-            border-bottom-right-radius: 0.75rem;
+            border-bottom-left-radius: var(--radius-g2-lg, 1.25rem);
+            border-bottom-right-radius: var(--radius-g2-lg, 1.25rem);
         }
         .modal-title {
             color: var(--text-color);
@@ -1334,47 +1398,115 @@
             background: transparent;
         }
 
-        /* Shared tab pills (insumos + pagos) */
+        /* Shared tab pills (insumos + pagos + contactos + bobinas + control) */
         #insumos-nav-tabs .nav-link,
-        #pagos-nav-tabs .nav-link {
+        #pagos-nav-tabs .nav-link,
+        #contactos-nav-tabs .nav-link,
+        #bobinas-nav-tabs .nav-link,
+        #control-nav-tabs .nav-link {
             color: var(--text-color);
             background: var(--button-bg);
             border: 1px solid var(--input-border);
-            border-radius: 2rem;
+            border-radius: var(--radius-g2-pill, 9999px);
             padding: 0.35rem 1.1rem;
             font-size: 0.85rem;
-            transition: background 0.18s, color 0.18s;
+            transition: background 0.18s, color 0.18s, border-color 0.18s;
+            -webkit-corner-smoothing: 60%;
+            corner-smoothing: 60%;
         }
         #insumos-nav-tabs .nav-link:hover,
-        #pagos-nav-tabs .nav-link:hover {
+        #pagos-nav-tabs .nav-link:hover,
+        #contactos-nav-tabs .nav-link:hover,
+        #bobinas-nav-tabs .nav-link:hover,
+        #control-nav-tabs .nav-link:hover {
             background: var(--button-hover-bg);
         }
         #insumos-nav-tabs .nav-link.active,
-        #pagos-nav-tabs .nav-link.active {
+        #pagos-nav-tabs .nav-link.active,
+        #contactos-nav-tabs .nav-link.active,
+        #bobinas-nav-tabs .nav-link.active,
+        #control-nav-tabs .nav-link.active {
             background: var(--accent-color);
             border-color: var(--accent-color);
             color: #fff;
             font-weight: 600;
         }
 
-        /* Contactos tab pills */
-        #contactos-nav-tabs .nav-link {
-            color: var(--text-color);
-            background: var(--button-bg);
-            border: 1px solid var(--input-border);
-            border-radius: 2rem;
-            padding: 0.35rem 1.1rem;
-            font-size: 0.85rem;
-            transition: background 0.18s, color 0.18s;
+        /* ── Dashboard: Lista de compras compartida ────────────────── */
+        .lista-compras-card {
+            border-radius: var(--radius-g2-xl, 1.5rem);
         }
-        #contactos-nav-tabs .nav-link:hover {
+        .lista-compras-items {
+            min-height: 60px;
+        }
+        .lista-compras-item {
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: var(--radius-g2-md, 1rem);
+            padding: 0.6rem 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: background 0.2s ease, opacity 0.2s ease;
+        }
+        .lista-compras-item:hover {
             background: var(--button-hover-bg);
         }
-        #contactos-nav-tabs .nav-link.active {
-            background: var(--accent-color);
-            border-color: var(--accent-color);
-            color: #fff;
+        .lista-compras-item.completado {
+            opacity: 0.5;
+        }
+        .lista-compras-item.completado .item-texto {
+            text-decoration: line-through;
+        }
+        .lista-compras-item .item-cantidad {
+            background: rgba(96, 208, 64, 0.2);
+            color: var(--accent-color);
+            border: 1px solid rgba(96, 208, 64, 0.35);
             font-weight: 600;
+            font-size: 0.8rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: var(--radius-g2-pill, 9999px);
+            white-space: nowrap;
+        }
+        .lista-compras-item .item-texto {
+            flex-grow: 1;
+            font-size: 0.92rem;
+            word-break: break-word;
+        }
+
+        /* ── Control: Nuevos campos de registro y gráficos ─────────── */
+        .control-item-registro {
+            border-left: 3px solid #ffc107 !important;
+            border-radius: var(--radius-g2-md, 1rem);
+        }
+        .control-chart-card {
+            background: var(--card-bg);
+            border: 1px solid var(--input-border);
+            border-radius: var(--radius-g2-xl, 1.5rem);
+            padding: 1.25rem;
+            box-shadow: 0 4px 20px var(--shadow-color);
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+        .control-chart-svg {
+            width: 100%;
+            height: 280px;
+        }
+        .control-d3-tooltip {
+            position: absolute;
+            pointer-events: none;
+            opacity: 0;
+            background: rgba(18, 22, 34, 0.88);
+            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--input-border, rgba(255, 255, 255, 0.15));
+            border-radius: var(--radius-g2-sm, 0.75rem);
+            padding: 0.6rem 0.85rem;
+            color: var(--text-color, #fff);
+            font-size: 0.82rem;
+            z-index: 10000;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+            transition: opacity 0.15s ease-out;
         }
 
         /* ── Bobinas cart bar ──────────────────────────────────────── */

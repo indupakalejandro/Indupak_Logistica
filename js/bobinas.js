@@ -47,7 +47,7 @@ function actualizarBadgePendientes() {
     }
     const btnLimpiar = document.getElementById('bobinas-btn-limpiar-pendientes');
     if (btnLimpiar) {
-        btnLimpiar.style.display = count > 1 ? 'inline-block' : 'none';
+        btnLimpiar.style.display = (state.activeBobinasTab === 'pendientes' && count > 0) ? 'inline-block' : 'none';
     }
 }
 
@@ -62,23 +62,13 @@ function calcMetros(ancho, espesor, kilos) {
     return parseFloat(((kilos * 1000) / factor).toFixed(2));
 }
 
-// ── Toast notifications ──────────────────────────────────────────────────────
+// ── Toast notifications (Unificadas con efecto transparente en esquina superior derecha) ──
 function showToast(msg, type = 'success') {
-    if (type === 'error') { window.showAlert(msg); return; }
-    const container = document.getElementById('bobinas-toast-container');
-    if (!container) return;
-    const id = 'bt-' + Date.now();
-    const bg = type === 'success' ? 'bg-success' : 'bg-info';
-    const el = document.createElement('div');
-    el.id = id;
-    el.className = `toast align-items-center text-white border-0 ${bg}`;
-    el.setAttribute('role', 'alert');
-    el.innerHTML = `<div class="d-flex"><div class="toast-body">${msg}</div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
-    container.appendChild(el);
-    const t = new bootstrap.Toast(el, { autohide: true, delay: 3000 });
-    t.show();
-    el.addEventListener('hidden.bs.toast', () => el.remove());
+    if (window.showNotification) {
+        window.showNotification(msg, type);
+    } else if (window.showAlert) {
+        window.showAlert(msg, type);
+    }
 }
 
 // ── Firestore cart persistence ───────────────────────────────────────────────
@@ -142,6 +132,13 @@ export function switchBobinasTab(tab) {
 
     if (secPendientes) secPendientes.style.display = tab === 'pendientes' ? 'block' : 'none';
     if (secLista) secLista.style.display = tab === 'lista' ? 'block' : 'none';
+
+    const btnManual = document.getElementById('bobinas-btn-manual');
+    const btnHistorial = document.getElementById('bobinas-btn-historial');
+    const btnAgregar = document.getElementById('bobinas-btn-agregar');
+    if (btnManual) btnManual.style.display = tab === 'lista' ? 'inline-block' : 'none';
+    if (btnHistorial) btnHistorial.style.display = tab === 'lista' ? 'inline-block' : 'none';
+    if (btnAgregar) btnAgregar.style.display = tab === 'lista' ? 'inline-block' : 'none';
 
     actualizarBadgePendientes();
 

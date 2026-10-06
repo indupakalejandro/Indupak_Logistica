@@ -16,6 +16,7 @@ export const state = {
     comisionistasData: [], localidadesData: [], plasticSuppliersData: [],
     pendingPaymentsData: [], paymentHistoryData: [],
     monthlyKiloSummariesData: {}, faltantesData: [],
+    listaComprasData: [],
     // UI state
     isSearchMode: false, currentSearchFilter: 'nombre',
     currentActivePanel: 'dashboard',

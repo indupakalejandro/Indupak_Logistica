@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { getUserCollection, doc, updateDoc } from './firebase.js';
+import { getUserCollection, doc, updateDoc, addDoc, deleteDoc } from './firebase.js';
 
 // Paleta de colores para proveedores
 const SUPPLIER_COLORS = ['#60D040','#9060e0','#fd7e14','#20c997','#e83e8c','#0dcaf0','#ffc107','#6610f2'];
@@ -27,6 +27,7 @@ export function renderizarDashboard() {
     }
 
     renderDashboardNovedades();
+    renderizarListaComprasDashboard();
     renderMonthlyKilosChart();
 }
 
@@ -310,3 +311,176 @@ export function renderMonthlyKilosChart(containerEl, legendEl) {
         .attr('opacity', '0.85')
         .text((d, i) => monthTotals[i] > 0 ? d3.format(',')(monthTotals[i]) : '');
 }
+
+// ── Lista de Compras Compartida ──────────────────────────────────────────────
+export function renderizarListaComprasDashboard() {
+    const listEl = document.getElementById('dashboard-compras-lista');
+    const countEl = document.getElementById('dashboard-compras-count');
+    if (!listEl) return;
+
+    const items = [...(state.listaComprasData || [])];
+    // Ordenar: pendientes primero (más recientes arriba), luego completados
+    items.sort((a, b) => {
+        if (!!a.completado !== !!b.completado) return a.completado ? 1 : -1;
+        const fa = a.creadoEn?.toDate?.() || new Date(a.creadoEn || 0);
+        const fb = b.creadoEn?.toDate?.() || new Date(b.creadoEn || 0);
+        return fb - fa;
+    });
+
+    const pendientes = items.filter(i => !i.completado).length;
+    if (countEl) {
+        countEl.textContent = `${pendientes} pendiente${pendientes === 1 ? '' : 's'}`;
+        countEl.className = pendientes > 0 ? 'badge bg-warning text-dark ms-2' : 'badge bg-secondary ms-2';
+    }
+
+    if (items.length === 0) {
+        listEl.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-cart-x fs-2 d-block mb-1 opacity-50"></i>
+                <small>No hay artículos en la lista de compras. Agregá uno arriba para que todos lo vean.</small>
+            </div>
+        `;
+        return;
+    }
+
+    listEl.innerHTML = items.map(item => `
+        <div class="lista-compras-item ${item.completado ? 'completado' : ''}" id="compra-item-${item.id}">
+            <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" id="chk-compra-${item.id}"
+                    ${item.completado ? 'checked' : ''}
+                    onchange="window.toggleItemListaCompras('${item.id}')"
+                    title="${item.completado ? 'Marcar como pendiente' : 'Marcar como comprado'}">
+            </div>
+            <div class="item-texto flex-grow-1">
+                <span>${escapeHtml(item.texto || '')}</span>
+            </div>
+            ${item.cantidad ? `<span class="item-cantidad">${escapeHtml(item.cantidad)}</span>` : ''}
+            <div class="d-flex align-items-center gap-1">
+                <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="Editar" onclick="window.editarItemListaCompras('${item.id}')">
+                    <i class="bi bi-pencil" style="font-size: 0.8rem;"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Eliminar" onclick="window.eliminarItemListaCompras('${item.id}')">
+                    <i class="bi bi-trash3" style="font-size: 0.8rem;"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[m]));
+}
+
+window.agregarItemListaCompras = async function(event) {
+    if (event) event.preventDefault();
+    const inputTexto = document.getElementById('compras-input-texto');
+    const inputCant = document.getElementById('compras-input-cantidad');
+    if (!inputTexto) return;
+    const texto = inputTexto.value.trim();
+    const cantidad = inputCant ? inputCant.value.trim() : '';
+    if (!texto) return;
+
+    try {
+        await addDoc(getUserCollection('dashboardListaCompras'), {
+            texto,
+            cantidad,
+            completado: false,
+            creadoEn: new Date()
+        });
+        inputTexto.value = '';
+        if (inputCant) inputCant.value = '';
+        inputTexto.focus();
+        if (window.showNotification) {
+            window.showNotification('Artículo agregado a la lista de compras', 'success', 2200);
+        }
+    } catch (e) {
+        console.error('Error agregando a la lista de compras:', e);
+        if (window.showAlert) window.showAlert('Error al agregar el artículo.', 'error');
+    }
+};
+
+window.toggleItemListaCompras = async function(id) {
+    const item = (state.listaComprasData || []).find(i => i.id === id);
+    if (!item) return;
+    const nuevoEstado = !item.completado;
+    item.completado = nuevoEstado;
+    renderizarListaComprasDashboard();
+    try {
+        await updateDoc(doc(getUserCollection('dashboardListaCompras'), id), {
+            completado: nuevoEstado,
+            actualizadoEn: new Date()
+        });
+    } catch (e) {
+        console.error('Error actualizando item de compra:', e);
+        item.completado = !nuevoEstado;
+        renderizarListaComprasDashboard();
+    }
+};
+
+window.editarItemListaCompras = function(id) {
+    const item = (state.listaComprasData || []).find(i => i.id === id);
+    if (!item) return;
+    const nuevoTexto = prompt('Editar artículo:', item.texto);
+    if (nuevoTexto === null) return;
+    const trimmed = nuevoTexto.trim();
+    if (!trimmed) {
+        if (window.showAlert) window.showAlert('El nombre no puede estar vacío.', 'warning');
+        return;
+    }
+    const nuevaCant = prompt('Editar cantidad / detalle (opcional):', item.cantidad || '');
+    if (nuevaCant === null) return;
+
+    updateDoc(doc(getUserCollection('dashboardListaCompras'), id), {
+        texto: trimmed,
+        cantidad: nuevaCant.trim(),
+        editadoEn: new Date()
+    }).then(() => {
+        if (window.showNotification) {
+            window.showNotification('Artículo actualizado en la lista', 'success', 2000);
+        }
+    }).catch(err => {
+        console.error(err);
+        if (window.showAlert) window.showAlert('Error al editar el artículo.', 'error');
+    });
+};
+
+window.eliminarItemListaCompras = function(id) {
+    const item = (state.listaComprasData || []).find(i => i.id === id);
+    const nombre = item ? `"${item.texto}"` : 'este artículo';
+    window.showConfirm(`¿Eliminar ${nombre} de la lista de compras?`, async ok => {
+        if (!ok) return;
+        try {
+            await deleteDoc(doc(getUserCollection('dashboardListaCompras'), id));
+            if (window.showNotification) {
+                window.showNotification('Artículo eliminado de la lista', 'info', 2000);
+            }
+        } catch (e) {
+            console.error(e);
+            if (window.showAlert) window.showAlert('Error al eliminar el artículo.', 'error');
+        }
+    });
+};
+
+window.limpiarCompradosListaCompras = function() {
+    const comprados = (state.listaComprasData || []).filter(i => i.completado);
+    if (comprados.length === 0) {
+        if (window.showNotification) window.showNotification('No hay artículos comprados para limpiar.', 'info', 2500);
+        return;
+    }
+    window.showConfirm(`¿Eliminar los ${comprados.length} artículos ya comprados?`, async ok => {
+        if (!ok) return;
+        try {
+            for (const item of comprados) {
+                await deleteDoc(doc(getUserCollection('dashboardListaCompras'), item.id));
+            }
+            if (window.showNotification) {
+                window.showNotification(`${comprados.length} artículos comprados eliminados.`, 'success', 2500);
+            }
+        } catch (e) {
+            console.error(e);
+            if (window.showAlert) window.showAlert('Error al limpiar los artículos.', 'error');
+        }
+    });
+};

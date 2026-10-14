@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import { getUserCollection, doc, addDoc, updateDoc, deleteDoc } from './firebase.js';
+import { formatCantidad, parseCantidad } from './ui.js';
 
 /**
  * Renders the faltantes table based on current state.faltantesData and search filter.
@@ -28,7 +29,7 @@ export function renderizarTablaFaltantes() {
                 <tr>
                     <td><strong>${item.codigo}</strong></td>
                     <td>${item.medida || 'N/A'}</td>
-                    <td class="text-end">${Math.round(item.cantidad)}</td>
+                    <td class="text-end">${formatCantidad(item.cantidad)}</td>
                     <td class="text-center">
                         <button class="btn btn-sm btn-warning" onclick="prepararModalFaltanteParaEditar('${item.id}')" title="Editar"><i class="bi bi-pencil-fill"></i></button>
                         <button class="btn btn-sm btn-danger" onclick="confirmarEliminacionFaltante('${item.id}')" title="Eliminar"><i class="bi bi-trash-fill"></i></button>
@@ -62,7 +63,7 @@ window.prepararModalFaltanteParaEditar = function(id) {
     }
     if (state.elements.idFaltanteInput) state.elements.idFaltanteInput.value = faltante.id;
     if (state.elements.codigoFaltanteInput) state.elements.codigoFaltanteInput.value = faltante.codigo;
-    if (state.elements.cantidadFaltanteInput) state.elements.cantidadFaltanteInput.value = Math.round(faltante.cantidad);
+    if (state.elements.cantidadFaltanteInput) state.elements.cantidadFaltanteInput.value = formatCantidad(faltante.cantidad);
     if (state.elements.medidaFaltanteInput) state.elements.medidaFaltanteInput.value = faltante.medida || '';
     if (state.elements.modalFaltanteLabel) state.elements.modalFaltanteLabel.innerText = '✏️ Modificar Faltante';
     new bootstrap.Modal(state.elements.modalFaltante).show();
@@ -75,7 +76,7 @@ window.guardarFaltante = async function() {
     const id = state.elements.idFaltanteInput ? state.elements.idFaltanteInput.value : '';
     const codigo = state.elements.codigoFaltanteInput ? state.elements.codigoFaltanteInput.value.trim() : '';
     const medida = state.elements.medidaFaltanteInput ? state.elements.medidaFaltanteInput.value.trim() : '';
-    const cantidad = state.elements.cantidadFaltanteInput ? parseInt(state.elements.cantidadFaltanteInput.value) : 0;
+    const cantidad = state.elements.cantidadFaltanteInput ? parseCantidad(state.elements.cantidadFaltanteInput.value) : 0;
 
     if (!codigo || !medida || isNaN(cantidad) || cantidad < 0) {
         window.showAlert("Por favor, complete todos los campos obligatorios (Código, Medida, Cantidad) y asegúrese que la cantidad sea un número no negativo.");

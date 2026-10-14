@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import { getUserCollection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, where } from './firebase.js';
+import { parseCantidad, formatCantidad } from './ui.js';
 
 /**
  * Renders the inventory table based on current state.inventarioData and search filter.
@@ -33,8 +34,8 @@ export function renderizarTablaInventario() {
                 <tr class="${esStockBajo ? 'table-danger' : ''}">
                     <td><strong>${item.nombre}</strong><br><small class="text-muted">${item.descripcion || ''}</small></td>
                     <td>${categoria ? categoria.name : 'N/A'}</td>
-                    <td class="text-end">${Math.round(item.cantidadActual)}</td>
-                    <td class="text-end">${Math.round(item.stockMinimo)}</td>
+                    <td class="text-end">${formatCantidad(item.cantidadActual)}</td>
+                    <td class="text-end">${formatCantidad(item.stockMinimo)}</td>
                     <td
                         class="text-start"
                         onmouseenter="handleProviderMouseEnter(event, '${item.idProveedor}')"
@@ -45,7 +46,7 @@ export function renderizarTablaInventario() {
                     <td class="text-center">
                         <div class="input-group input-group-sm">
                             <button class="btn btn-danger btn-adjust-stock" onclick="ajustarStockDirecto('${item.id}', -1)"><i class="bi bi-dash-circle"></i></button>
-                            <input type="number" class="form-control stock-adjust-input" id="adjust-${item.id}" value="1" min="0">
+                            <input type="number" step="any" class="form-control stock-adjust-input" id="adjust-${item.id}" value="1" min="0">
                             <button class="btn btn-success btn-adjust-stock" onclick="ajustarStockDirecto('${item.id}', 1)"><i class="bi bi-plus-circle"></i></button>
                         </div>
                     </td>
@@ -72,7 +73,7 @@ window.ajustarStockDirecto = async function(id, direction) {
         return;
     }
 
-    const cantidadAjuste = parseInt(inputElement.value);
+    const cantidadAjuste = parseCantidad(inputElement.value);
     if (isNaN(cantidadAjuste) || cantidadAjuste <= 0) {
         window.showAlert("Por favor, ingrese una cantidad válida para ajustar.");
         return;
@@ -88,11 +89,11 @@ window.ajustarStockDirecto = async function(id, direction) {
         return;
     }
 
-    const stockAnterior = articulo.cantidadActual;
-    let nuevoStock = stockAnterior + delta;
+    const stockAnterior = parseCantidad(articulo.cantidadActual);
+    let nuevoStock = Number((stockAnterior + delta).toFixed(4));
 
     if (nuevoStock < 0) {
-        window.showAlert("La cantidad no puede ser negativa. Stock actual: " + Math.round(stockAnterior));
+        window.showAlert("La cantidad no puede ser negativa. Stock actual: " + formatCantidad(stockAnterior));
         nuevoStock = 0;
     }
 
@@ -138,7 +139,7 @@ window.prepararModalParaEditar = function(id) {
     if (state.elements.idArticuloInput) state.elements.idArticuloInput.value = articulo.id;
     if (state.elements.nombreArticuloInput) state.elements.nombreArticuloInput.value = articulo.nombre;
     if (state.elements.descripcionInput) state.elements.descripcionInput.value = articulo.descripcion || '';
-    if (state.elements.stockMinimoInput) state.elements.stockMinimoInput.value = Math.round(articulo.stockMinimo);
+    if (state.elements.stockMinimoInput) state.elements.stockMinimoInput.value = formatCantidad(articulo.stockMinimo);
     if (state.elements.modalArticuloLabel) state.elements.modalArticuloLabel.innerText = '✏️ Modificar Artículo';
 
     if (state.elements.modalArticulo) state.elements.modalArticulo.dataset.editingArticleId = id;
@@ -154,7 +155,7 @@ window.guardarArticulo = async function() {
     const nombre = state.elements.nombreArticuloInput ? state.elements.nombreArticuloInput.value.trim() : '';
     const categoria = state.elements.categoriaSelect ? state.elements.categoriaSelect.value : '';
     const unidadMedida = state.elements.unidadMedidaSelect ? state.elements.unidadMedidaSelect.value : '';
-    const stockMinimo = state.elements.stockMinimoInput ? parseInt(state.elements.stockMinimoInput.value) : 0;
+    const stockMinimo = state.elements.stockMinimoInput ? parseCantidad(state.elements.stockMinimoInput.value) : 0;
 
     if (!nombre) {
         window.showAlert("El nombre del artículo es obligatorio.");
@@ -180,7 +181,7 @@ window.guardarArticulo = async function() {
             console.log("Artículo actualizado con ID: ", id);
         } else {
             if (state.elements.cantidadActualInput) {
-                const cantidadActual = parseInt(state.elements.cantidadActualInput.value);
+                const cantidadActual = parseCantidad(state.elements.cantidadActualInput.value);
                 if (isNaN(cantidadActual) || cantidadActual < 0) {
                     window.showAlert("La cantidad actual debe ser un número válido y no negativo.");
                     return;
@@ -315,9 +316,9 @@ window.verHistorial = async function(id) {
                     <tr>
                         <td>${fechaFormateada}</td>
                         <td>${mov.tipo}</td>
-                        <td class="text-end">${Math.round(mov.cantidad)}</td>
-                        <td class="text-end">${Math.round(mov.stockAnterior)}</td>
-                        <td class="text-end">${Math.round(mov.stockNuevo)}</td>
+                        <td class="text-end">${formatCantidad(mov.cantidad)}</td>
+                        <td class="text-end">${formatCantidad(mov.stockAnterior)}</td>
+                        <td class="text-end">${formatCantidad(mov.stockNuevo)}</td>
                     </tr>
                 `;
             });

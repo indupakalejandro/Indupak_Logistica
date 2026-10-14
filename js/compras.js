@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { formatCantidad, parseCantidad } from './ui.js';
 
 /**
  * Renders the purchases panel with low stock items, grouped by supplier.
@@ -20,7 +21,9 @@ export function renderizarPanelCompras() {
 
         return item.cantidadActual < item.stockMinimo && matchesSearch;
     }).map(item => {
-        const cantidadNecesaria = (item.stockMinimo - item.cantidadActual) + 1;
+        const diff = Math.max(0, item.stockMinimo - item.cantidadActual);
+        const margen = (item.stockMinimo % 1 === 0 && item.stockMinimo >= 1) ? 1 : 0;
+        const cantidadNecesaria = Number((diff + margen).toFixed(3));
         return { ...item, cantidadNecesaria };
     });
 
@@ -52,9 +55,9 @@ export function renderizarPanelCompras() {
                 tbody.innerHTML += `
                     <tr class="${item.cantidadActual <= item.stockMinimo ? 'table-danger' : ''}">
                         <td><strong>${item.nombre}</strong><br><small class="text-muted">${item.descripcion || ''}</small></td>
-                        <td class="text-end">${Math.round(item.cantidadActual)}</td>
-                        <td class="text-end">${Math.round(item.stockMinimo)}</td>
-                        <td class="text-end">${Math.round(item.cantidadNecesaria)}</td>
+                        <td class="text-end">${formatCantidad(item.cantidadActual)}</td>
+                        <td class="text-end">${formatCantidad(item.stockMinimo)}</td>
+                        <td class="text-end">${formatCantidad(item.cantidadNecesaria)}</td>
                         <td>${unidadMedida ? unidadMedida.name : 'N/A'}</td>
                     </tr>`;
             });
@@ -106,13 +109,15 @@ window.generarPdfCompras = async function() {
         const tableDataForProvider = [];
         groupedByProvider[proveedorNombre].forEach(item => {
             const unidadMedida = state.unitsOfMeasureData.find(u => u.id === item.unidadMedida);
-            const cantidadNecesaria = (item.stockMinimo - item.cantidadActual) + 1;
+            const diff = Math.max(0, item.stockMinimo - item.cantidadActual);
+            const margen = (item.stockMinimo % 1 === 0 && item.stockMinimo >= 1) ? 1 : 0;
+            const cantidadNecesaria = Number((diff + margen).toFixed(3));
 
             tableDataForProvider.push([
                 item.nombre,
-                Math.round(item.cantidadActual),
-                Math.round(item.stockMinimo),
-                Math.round(cantidadNecesaria),
+                formatCantidad(item.cantidadActual),
+                formatCantidad(item.stockMinimo),
+                formatCantidad(cantidadNecesaria),
                 unidadMedida ? unidadMedida.name : 'N/A'
             ]);
         });

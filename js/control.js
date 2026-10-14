@@ -564,7 +564,7 @@ function controlRenderizarEjecucion() {
                     </div>
                     <div class="d-flex align-items-center gap-2 flex-wrap">
                         <label class="form-label mb-0 small text-muted">Cantidad contada:</label>
-                        <input type="number" class="form-control form-control-sm" style="width:110px;" min="0"
+                        <input type="number" step="any" class="form-control form-control-sm" style="width:110px;" min="0"
                             value="${item.cantidadContada}"
                             oninput="controlActualizarCantidad(${idx}, this.value)">
                     </div>

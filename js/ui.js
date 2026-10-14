@@ -54,6 +54,24 @@ export function showAlert(message, type = 'info') {
 }
 window.showAlert = showAlert;
 
+export function parseCantidad(val) {
+    if (val === null || val === undefined || val === '') return 0;
+    if (typeof val === 'number') return isNaN(val) ? 0 : val;
+    const normalized = String(val).trim().replace(',', '.');
+    const parsed = parseFloat(normalized);
+    return isNaN(parsed) ? 0 : parsed;
+}
+window.parseCantidad = parseCantidad;
+
+export function formatCantidad(val, maxDecimals = 3) {
+    if (val === null || val === undefined || val === '') return '0';
+    const n = Number(val);
+    if (isNaN(n)) return '0';
+    if (n % 1 === 0) return n.toString();
+    return parseFloat(n.toFixed(maxDecimals)).toString();
+}
+window.formatCantidad = formatCantidad;
+
 export function showConfirm(message, callback) {
     document.getElementById('customConfirmModalBody').innerHTML = message;
     currentConfirmCallback = callback;

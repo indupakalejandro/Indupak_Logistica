@@ -1,6 +1,7 @@
 import { state } from './state.js';
 import { getUserCollection, doc, addDoc, setDoc, deleteDoc, increment } from './firebase.js';
 import { renderMonthlyKilosChart } from './dashboard.js';
+import { parseCantidad, formatCantidad } from './ui.js';
 
 const MONTH_NAMES_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const MONTH_NAMES_FULL  = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -49,7 +50,7 @@ function renderizarTablaPagosPendientes() {
                 <tr>
                     <td>${fechaCarga}</td>
                     <td>${proveedor ? proveedor.name : 'N/A'}</td>
-                    <td class="text-end">${Math.round(pago.kilosTotales)}</td>
+                    <td class="text-end">${formatCantidad(pago.kilosTotales)}</td>
                     <td class="text-center">
                         <button class="btn btn-sm btn-success me-1" onclick="pagarPendiente('${pago.id}')" title="Marcar como Pagado"><i class="bi bi-cash-coin"></i> Pagar</button>
                         <button class="btn btn-sm btn-danger" onclick="eliminarPagoPendiente('${pago.id}')" title="Eliminar Registro"><i class="bi bi-trash-fill"></i></button>
@@ -63,7 +64,7 @@ function renderizarTablaPagosPendientes() {
     tfoot.innerHTML = `
         <tr>
             <th colspan="2" class="text-end">Total Kilos por Pagar:</th>
-            <th class="text-end">${Math.round(totalKilosPorPagar)}</th>
+            <th class="text-end">${formatCantidad(totalKilosPorPagar)}</th>
             <th></th>
         </tr>
     `;
@@ -104,7 +105,7 @@ function renderizarTablaHistorialPagos() {
                     <td>${fechaCarga}</td>
                     <td>${fechaPago}</td>
                     <td>${proveedor ? proveedor.name : 'N/A'}</td>
-                    <td class="text-end">${Math.round(pago.kilosTotales)}</td>
+                    <td class="text-end">${formatCantidad(pago.kilosTotales)}</td>
                 </tr>
             `;
         });
@@ -140,7 +141,7 @@ export function actualizarDropdownProveedoresPlastico(idSeleccionado = '') {
  */
 window.guardarPagoPendiente = async function() {
     const idProveedorPlastico = state.elements.proveedorPlasticoPagoSelect ? state.elements.proveedorPlasticoPagoSelect.value : '';
-    const kilosTotales = state.elements.kilosTotalesInput ? parseInt(state.elements.kilosTotalesInput.value) : 0;
+    const kilosTotales = state.elements.kilosTotalesInput ? parseCantidad(state.elements.kilosTotalesInput.value) : 0;
 
     if (!idProveedorPlastico) {
         window.showAlert("Por favor, seleccione un proveedor de plástico.");
@@ -178,7 +179,7 @@ window.pagarPendiente = function(paymentId) {
     const proveedor = state.plasticSuppliersData.find(ps => ps.id === pago.idProveedorPlastico);
     const proveedorNombre = proveedor ? proveedor.name : 'N/A';
 
-    window.showConfirm(`¿Está seguro de que desea marcar el pago de <strong>${Math.round(pago.kilosTotales)} Kilos</strong> a <strong>${proveedorNombre}</strong> como pagado?`, async (confirmed) => {
+    window.showConfirm(`¿Está seguro de que desea marcar el pago de <strong>${formatCantidad(pago.kilosTotales)} Kilos</strong> a <strong>${proveedorNombre}</strong> como pagado?`, async (confirmed) => {
         if (confirmed) {
             try {
                 await addDoc(getUserCollection('paymentHistory'), {
@@ -214,7 +215,7 @@ window.eliminarPagoPendiente = function(paymentId) {
     const proveedor = state.plasticSuppliersData.find(ps => ps.id === pago.idProveedorPlastico);
     const proveedorNombre = proveedor ? proveedor.name : 'N/A';
 
-    window.showConfirm(`¿Está seguro de que desea eliminar el registro de pago pendiente de <strong>${Math.round(pago.kilosTotales)} Kilos</strong> a <strong>${proveedorNombre}</strong>? Esta acción no se puede deshacer.`, async (confirmed) => {
+    window.showConfirm(`¿Está seguro de que desea eliminar el registro de pago pendiente de <strong>${formatCantidad(pago.kilosTotales)} Kilos</strong> a <strong>${proveedorNombre}</strong>? Esta acción no se puede deshacer.`, async (confirmed) => {
         if (confirmed) {
             try {
                 await deleteDoc(doc(getUserCollection('pendingPayments'), paymentId));

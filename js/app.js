@@ -1,6 +1,6 @@
 import { initFirebase, getUserCollection, onSnapshot } from './firebase.js';
 import { state, totalCollectionsToLoad } from './state.js';
-import { cacheDOMElements, showLoadingScreen, hideLoadingScreen, updateLoadingProgress, panelHandlers, setupUIListeners } from './ui.js';
+import { cacheDOMElements, mostrarEsqueletoInicio, finalizarEsqueletoInicio, panelHandlers, setupUIListeners } from './ui.js';
 import { renderizarDashboard, startDashboardClock, renderMonthlyKilosChart, renderizarListaComprasDashboard } from './dashboard.js';
 import { renderizarTablaInventario, verificarStockBajo, actualizarDropdownProveedores, actualizarDropdownCategorias, actualizarDropdownUnidadesMedida } from './inventario.js';
 import { renderizarPanelProveedores, actualizarDropdownRoles, setupProviderCardListeners } from './proveedores.js';
@@ -13,6 +13,7 @@ import { setupControlListeners, controlRestaurarDesdeLocal, controlMostrarLista 
 import { renderizarTablaAnalisis } from './analisis.js';
 import { renderizarBobinasPanel, initBobinas, sincronizarCartBar } from './bobinas.js';
 import { initTermos } from './termos.js';
+import { setupHorariosListeners, renderizarHorariosPanel } from './horarios.js';
 
 // Version information
 const APP_VERSION = "1.2";
@@ -64,7 +65,7 @@ panelHandlers['bobinas'] = function() {
     renderizarBobinasPanel();
 };
 panelHandlers['termos'] = initTermos;
-panelHandlers['renderMonthlyKilosChart'] = renderMonthlyKilosChart;
+panelHandlers['horarios'] = renderizarHorariosPanel;
 panelHandlers['renderPagosKilosChart'] = function() {
     const chartEl  = document.getElementById('pagosKilosChart');
     const legendEl = document.getElementById('pagos-chart-legend');
@@ -82,12 +83,9 @@ function checkAllDataLoaded() {
             state.loadedCollectionsCount++;
         }
     }
-    const currentProgress = Math.round((state.loadedCollectionsCount / totalCollectionsToLoad) * 100);
-    updateLoadingProgress(currentProgress);
-
     if (state.loadedCollectionsCount === totalCollectionsToLoad) {
-        console.log("All initial data collections loaded. Hiding loading screen.");
-        hideLoadingScreen();
+        console.log("All initial data collections loaded.");
+        finalizarEsqueletoInicio();
     } else {
         console.log(`Loaded ${state.loadedCollectionsCount} of ${totalCollectionsToLoad} collections.`);
     }
@@ -100,6 +98,7 @@ function setupRealtimeListeners() {
     if (!state.isAuthReady) return;
 
     setupControlListeners();
+    setupHorariosListeners();
 
     // Restore any ongoing control from localStorage after listeners are ready
     setTimeout(() => {
@@ -320,9 +319,6 @@ function setupRealtimeListeners() {
         snapshot.docs.forEach(doc => {
             state.monthlyKiloSummariesData[doc.id] = doc.data().totalKilos;
         });
-        if (state.currentActivePanel === 'dashboard') {
-            renderizarDashboard();
-        }
         if (!state.dataLoadedFlags.monthlyKiloSummaries) {
             state.dataLoadedFlags.monthlyKiloSummaries = true;
             checkAllDataLoaded();
@@ -381,7 +377,7 @@ initBobinas();
 // --- DOMContentLoaded ---
 document.addEventListener('DOMContentLoaded', function() {
     cacheDOMElements();
-    showLoadingScreen();
+    mostrarEsqueletoInicio();
     setupUIListeners();
     setupProviderCardListeners();
 

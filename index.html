@@ -24,18 +24,8 @@
     <!-- Estilos CSS personalizados integrados en el HTML -->
     <link rel="stylesheet" href="css/styles.css">
 </head>
-<body>
-    <!-- Loading Screen -->
-    <div id="loading-screen">
-        <div id="loading-messages">
-            <div id="loading-text" class="text-enter"></div>
-        </div>
-        <div id="loading-ready">
-            <div id="loading-day-greeting">¡Feliz lunes!</div>
-            <button id="loading-iniciar-btn" onclick="window.iniciarDesdeLoading()">Iniciar</button>
-        </div>
-        <div id="progress-bar-container"><div id="progress-bar"></div></div>
-    </div>
+<body class="app-cargando">
+    <div class="inicio-mensaje" id="inicio-mensaje" aria-live="polite"></div>
 
     <div id="themeToggleHotspot"></div>
 
@@ -69,6 +59,7 @@
                         <li><a class="dropdown-item" id="nav-faltantes" onclick="mostrarPanel('faltantes', event)"><i class="bi bi-exclamation-triangle-fill me-1"></i> Faltantes</a></li>
                         <li><a class="dropdown-item" id="nav-pagos" onclick="mostrarPanel('pagos', event)"><i class="bi bi-cash-coin me-1"></i> Pagos</a></li>
                         <li><a class="dropdown-item" id="nav-control" onclick="mostrarPanel('control', event)"><i class="bi bi-clipboard2-check-fill"></i> Control</a></li>
+                        <li><a class="dropdown-item" id="nav-horarios" onclick="mostrarPanel('horarios', event)"><i class="bi bi-clock-history me-1"></i> Control Horario</a></li>
                         <li><a class="dropdown-item" id="nav-termos" onclick="mostrarPanel('termos', event)"><i class="bi bi-rulers me-1"></i> Termo</a></li>
                     </ul>
                 </div>
@@ -98,11 +89,11 @@
     <main id="panel-dashboard" class="container mt-4">
 
         <!-- Fila principal: 3 botones izq | novedades der -->
-        <div class="row g-3 mb-4">
+        <div class="bento">
 
             <!-- Columna izquierda: 3 botones de acceso rápido -->
-            <div class="col-md-4 d-flex flex-column">
-                <div class="dash-btn-col flex-grow-1">
+            <div class="bento-4">
+                <div class="dash-btn-col">
                     <div class="card dash-btn" onclick="mostrarPanel('pagos', event)">
                         <div class="card-body">
                             <div class="dash-btn-left">
@@ -134,7 +125,7 @@
             </div>
 
             <!-- Columna derecha: novedades del último control -->
-            <div class="col-md-8">
+            <div class="bento-8">
                 <div class="novedades-panel">
                     <div class="novedades-panel-header">
                         <i class="bi bi-exclamation-circle-fill" style="color:#ffc107;font-size:0.8rem"></i>
@@ -147,11 +138,9 @@
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Lista de Compras Compartida (accesible y sincronizada para todos los usuarios) -->
-        <div class="row mb-4">
-            <div class="col-12">
+            <!-- Lista de Compras Compartida (accesible y sincronizada para todos los usuarios) -->
+            <div class="bento-12">
                 <div class="card lista-compras-card">
                     <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
                         <div class="d-flex align-items-center gap-2">
@@ -186,18 +175,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Gráfico kilos por mes con filtro de proveedor -->
-        <div class="row">
-            <div class="col-12 mb-4">
-                <div class="chart-container">
-                    <h5 class="text-center mb-1">Kilos Ingresados por Mes</h5>
-                    <div class="chart-legend" id="chart-legend"></div>
-                    <div id="monthlyKilosChart" class="chart-svg"></div>
-                </div>
-            </div>
-        </div>
-
     </main>
 
     <main id="panel-insumos" class="container mt-4" style="display: none;">
@@ -293,7 +270,7 @@
                     <span><span class="badge bg-warning text-dark me-1">7–14d</span>Urgente</span>
                     <span><span class="badge me-1" style="background:#fd7e14;color:#fff">15–29d</span>Atención</span>
                     <span><span class="badge bg-success me-1">&ge;30d</span>OK</span>
-                    <span class="ms-auto text-muted">Basado en últimos 90 días de movimientos</span>
+                    <span class="ms-auto text-muted">Últimos 90 días; si hubo menos de 3 retiros, amplía a 180 o 365</span>
                 </div>
             </div>
             <div class="card">
@@ -305,6 +282,7 @@
                                     <th>Artículo</th>
                                     <th class="text-end">Consumo/día</th>
                                     <th class="text-center">Días restantes</th>
+                                    <th class="text-center">Llega al mínimo</th>
                                     <th class="text-end">Reposiciones/mes</th>
                                     <th class="text-center">Stock en 30 días</th>
                                 </tr>
@@ -1055,93 +1033,157 @@
     </main>
 
     <main id="panel-configuracion" class="container mt-4" style="display: none;">
-        <div class="row">
-            <div class="col-md-6 mb-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Gestión de Categorías</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="input-group mb-3">
-                            <input type="text" class="form-control" id="inputCategoria" placeholder="Nueva categoría">
-                            <button class="btn btn-primary" type="button" onclick="agregarCategoria()">Agregar</button>
+        <div class="card mb-3">
+            <div class="card-body py-2 px-3">
+                <ul class="nav nav-pills gap-1 mb-0" id="config-nav-tabs">
+                    <li class="nav-item"><button class="nav-link active" id="tab-btn-config-insumos" onclick="switchConfiguracionTab('insumos')"><i class="bi bi-boxes me-1"></i>Insumos</button></li>
+                    <li class="nav-item"><button class="nav-link" id="tab-btn-config-contactos" onclick="switchConfiguracionTab('contactos')"><i class="bi bi-people-fill me-1"></i>Contactos</button></li>
+                    <li class="nav-item"><button class="nav-link" id="tab-btn-config-horario" onclick="switchConfiguracionTab('horario')"><i class="bi bi-clock-history me-1"></i>Control Horario</button></li>
+                    <li class="nav-item"><button class="nav-link" id="tab-btn-config-sistema" onclick="switchConfiguracionTab('sistema')"><i class="bi bi-info-circle-fill me-1"></i>Sistema</button></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="row" id="config-seccion-insumos">
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Categorías</h5>
                         </div>
-                        <ul class="list-group list-group-flush" id="listaCategorias">
-                            <!-- Categorías se renderizarán aquí -->
-                        </ul>
+                        <div class="card-body">
+                            <div class="input-group mb-3">
+                                <input type="text" class="form-control" id="inputCategoria" placeholder="Nueva categoría">
+                                <button class="btn btn-primary" type="button" onclick="agregarCategoria()">Agregar</button>
+                            </div>
+                            <ul class="list-group list-group-flush" id="listaCategorias"></ul>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="col-md-6 mb-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Gestión de Unidades de Medida</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="input-group mb-3">
-                            <input type="text" class="form-control" id="inputUnidadMedida" placeholder="Nueva unidad de medida">
-                            <button class="btn btn-primary" type="button" onclick="agregarUnidadMedida()">Agregar</button>
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Unidades de medida</h5>
                         </div>
-                        <ul class="list-group list-group-flush" id="listaUnidadesMedida">
-                            <!-- Unidades de medida se renderizarán aquí -->
-                        </ul>
+                        <div class="card-body">
+                            <div class="input-group mb-3">
+                                <input type="text" class="form-control" id="inputUnidadMedida" placeholder="Nueva unidad de medida">
+                                <button class="btn btn-primary" type="button" onclick="agregarUnidadMedida()">Agregar</button>
+                            </div>
+                            <ul class="list-group list-group-flush" id="listaUnidadesMedida"></ul>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="col-md-6 mb-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Gestión de Roles de Contacto</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="input-group mb-3">
-                            <input type="text" class="form-control" id="inputRol" placeholder="Nuevo rol de contacto">
-                            <button class="btn btn-primary" type="button" onclick="agregarRol()">Agregar</button>
+        </div>
+
+        <div class="row" id="config-seccion-contactos" style="display: none;">
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Roles de contacto</h5>
                         </div>
-                        <ul class="list-group list-group-flush" id="listaRoles">
-                            <!-- Roles se renderizarán aquí -->
-                        </ul>
+                        <div class="card-body">
+                            <div class="input-group mb-3">
+                                <input type="text" class="form-control" id="inputRol" placeholder="Nuevo rol de contacto">
+                                <button class="btn btn-primary" type="button" onclick="agregarRol()">Agregar</button>
+                            </div>
+                            <ul class="list-group list-group-flush" id="listaRoles"></ul>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="col-md-6 mb-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Gestión de Localidades</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="input-group mb-3">
-                            <input type="text" class="form-control" id="inputLocalidad" placeholder="Nueva localidad">
-                            <button class="btn btn-primary" type="button" onclick="agregarLocalidad()">Agregar</button>
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Localidades</h5>
                         </div>
-                        <ul class="list-group list-group-flush" id="listaLocalidades">
-                            <!-- Localidades se renderizarán aquí -->
-                        </ul>
+                        <div class="card-body">
+                            <div class="input-group mb-3">
+                                <input type="text" class="form-control" id="inputLocalidad" placeholder="Nueva localidad">
+                                <button class="btn btn-primary" type="button" onclick="agregarLocalidad()">Agregar</button>
+                            </div>
+                            <ul class="list-group list-group-flush" id="listaLocalidades"></ul>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <!-- Nueva tarjeta para Proveedores de Plástico -->
-            <div class="col-md-6 mb-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Gestión de Proveedores de Plástico</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="input-group mb-3">
-                            <input type="text" class="form-control" id="inputProveedorPlastico" placeholder="Nuevo proveedor de plástico">
-                            <button class="btn btn-primary" type="button" onclick="agregarProveedorPlastico()">Agregar</button>
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Proveedores de plástico</h5>
                         </div>
-                        <ul class="list-group list-group-flush" id="listaProveedoresPlastico">
-                            <!-- Proveedores de plástico se renderizarán aquí -->
-                        </ul>
+                        <div class="card-body">
+                            <div class="input-group mb-3">
+                                <input type="text" class="form-control" id="inputProveedorPlastico" placeholder="Nuevo proveedor de plástico">
+                                <button class="btn btn-primary" type="button" onclick="agregarProveedorPlastico()">Agregar</button>
+                            </div>
+                            <ul class="list-group list-group-flush" id="listaProveedoresPlastico"></ul>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <!-- Botón de Información de Versión -->
+        </div>
+
+        <div id="config-seccion-horario" style="display: none;">
+            <form class="card mb-4" id="formConfigHorario" onsubmit="event.preventDefault(); horariosGuardarConfig();">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Control Horario</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="fw-bold">Turnos</h6>
+                    <div class="cfg-turnos mb-4">
+                            <div class="cfg-turno">
+                                <strong>Mañana</strong>
+                                <label class="small" for="cfg-turno-0">Entrada</label>
+                                <input type="time" class="form-control form-control-sm" id="cfg-turno-0" required oninput="horariosActualizarSalidasConfig()">
+                                <span class="small" id="cfg-salida-0"></span>
+                            </div>
+                            <div class="cfg-turno">
+                                <strong>Tarde</strong>
+                                <label class="small" for="cfg-turno-1">Entrada</label>
+                                <input type="time" class="form-control form-control-sm" id="cfg-turno-1" required oninput="horariosActualizarSalidasConfig()">
+                                <span class="small" id="cfg-salida-1"></span>
+                            </div>
+                            <div class="cfg-turno">
+                                <strong>Noche</strong>
+                                <label class="small" for="cfg-turno-2">Entrada</label>
+                                <input type="time" class="form-control form-control-sm" id="cfg-turno-2" required oninput="horariosActualizarSalidasConfig()">
+                                <span class="small" id="cfg-salida-2"></span>
+                            </div>
+                    </div>
+
+                    <h6 class="fw-bold">Reglas</h6>
+                    <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Horas por turno</label>
+                                <input type="number" class="form-control form-control-sm" id="cfg-jornada" min="1" max="24" step="0.5" required oninput="horariosActualizarSalidasConfig()">
+                                <div class="form-text cfg-ayuda">Define a qué hora termina cada turno.</div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Tolerancia de llegada (minutos)</label>
+                                <input type="number" class="form-control form-control-sm" id="cfg-tolerancia" min="0" max="120" step="1" required>
+                                <div class="form-text cfg-ayuda">Hasta estos minutos después de la entrada se marca En tolerancia. Con 0, pasada la hora ya es tarde.</div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Anticipación (minutos)</label>
+                                <input type="number" class="form-control form-control-sm" id="cfg-anticipo" min="0" max="240" step="1" required>
+                                <div class="form-text cfg-ayuda">Desde cuánto antes de la entrada alguien ya cuenta para ese turno.</div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Bloque de horas extra</label>
+                                <select class="form-select form-select-sm" id="cfg-extras"><option value="15">15 minutos</option><option value="30">30 minutos</option><option value="60">1 hora</option></select>
+                                <div class="form-text cfg-ayuda">Las extras se proponen en múltiplos de este tiempo.</div>
+                            </div>
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                    <small class="cfg-ayuda">Se aplica a las próximas entradas. Los días ya cargados no cambian.</small>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-floppy me-1"></i>Guardar</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="row" id="config-seccion-sistema" style="display: none;">
             <div class="col-md-6 mb-4">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Información del Sistema</h5>
+                        <h5 class="card-title mb-0">Información del sistema</h5>
                     </div>
                     <div class="card-body d-flex justify-content-center align-items-center">
                         <button class="btn btn-info btn-lg" data-bs-toggle="modal" data-bs-target="#modalVersionInfo">
@@ -1309,6 +1351,214 @@
                     </div>
                 </div>
                 <div class="card-footer text-muted text-center" id="control-historial-footer"></div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ══════════ PANEL: CONTROL HORARIO Y PERSONAL ══════════ -->
+    <main id="panel-horarios" class="container-fluid mt-4 px-3 px-md-4" style="display: none;">
+
+        <div class="card mb-3" id="horarios-top-bar">
+            <div class="card-body py-2 px-3">
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <ul class="nav nav-pills gap-1 mb-0" id="horarios-nav-tabs">
+                        <li class="nav-item">
+                            <button class="nav-link active" id="tab-btn-horarios-diario" onclick="switchHorariosTab('diario')">
+                                <i class="bi bi-calendar2-check-fill me-1"></i>Planilla diaria
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" id="tab-btn-horarios-reportes" onclick="switchHorariosTab('reportes')">
+                                <i class="bi bi-person-lines-fill me-1"></i>Reporte por operario
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" id="tab-btn-horarios-personal" onclick="switchHorariosTab('personal')">
+                                <i class="bi bi-people-fill me-1"></i>Personal
+                            </button>
+                        </li>
+                    </ul>
+                    <div class="ms-auto d-flex gap-2 align-items-center flex-wrap" id="horarios-header-actions">
+                        <button class="btn btn-primary btn-sm text-nowrap" id="horarios-btn-agregar-operario" onclick="horariosAbrirModalOperario()">
+                            <i class="bi bi-person-plus-fill me-1"></i>Agregar operario
+                        </button>
+                        <button class="btn btn-outline-info btn-sm text-nowrap" id="horarios-btn-exportar-csv" style="display:none;" onclick="horariosExportarCSV()">
+                            <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i>Exportar a Excel
+                        </button>
+                        <button class="btn btn-primary btn-sm text-nowrap" id="horarios-btn-imprimir-reporte" style="display:none;" onclick="horariosImprimirReporte()">
+                            <i class="bi bi-printer-fill me-1"></i>Imprimir
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vista 1: Planilla diaria -->
+        <div id="horarios-vista-diario">
+            <div class="card mb-3">
+                <div class="card-body hor-dia-body">
+                    <div class="hor-dia-top">
+                        <div class="hor-reloj" id="horarios-reloj">--:--</div>
+                        <div class="hor-fecha-titulo">
+                            <h5 id="horarios-fecha-titulo">—</h5>
+                            <span id="horarios-turno-actual"></span>
+                        </div>
+                        <div class="hor-llegada" id="horarios-llegada-estado"></div>
+                    </div>
+
+                    <div class="hor-progreso-fila">
+                        <div class="hor-progreso"><div id="horarios-progreso-barra"></div></div>
+                        <span id="horarios-progreso-texto">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hor-tarjetas" id="horarios-diario-lista"></div>
+        </div>
+
+        <!-- Vista 2: Reporte por operario -->
+        <div id="horarios-vista-reportes" style="display:none;">
+            <div class="hor-reporte-top">
+                <div class="card hor-operario-card">
+                    <div class="card-body hor-operario-card-body">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-12 col-md-7">
+                                <label class="form-label small text-muted mb-1" for="horarios-reporte-operario-select">Operario</label>
+                                <div class="input-group input-group-sm">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="horariosMoverOperarioReporte(-1)" title="Operario anterior" aria-label="Operario anterior"><i class="bi bi-chevron-left"></i></button>
+                                    <select id="horarios-reporte-operario-select" class="form-select form-select-sm" onchange="horariosCambiarOperarioReporte(this.value)">
+                                        <option value="">Cargando operarios…</option>
+                                    </select>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="horariosMoverOperarioReporte(1)" title="Operario siguiente" aria-label="Operario siguiente"><i class="bi bi-chevron-right"></i></button>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-5">
+                                <label class="form-label small text-muted mb-1" for="horarios-reporte-rango-select">Período</label>
+                                <select id="horarios-reporte-rango-select" class="form-select form-select-sm" onchange="horariosCambiarPresetRangoReporte(this.value)">
+                                    <option value="mes_actual">Este mes</option>
+                                    <option value="mes_anterior">Mes anterior</option>
+                                    <option value="ultimos_30">Últimos 30 días</option>
+                                    <option value="este_ano">Este año</option>
+                                    <option value="todo">Todo el historial</option>
+                                    <option value="personalizado">Elegir fechas…</option>
+                                </select>
+                            </div>
+                            <div class="col-12" id="horarios-reporte-fechas-custom" style="display:none;">
+                                <span class="form-label small text-muted mb-1 d-block">Desde / Hasta</span>
+                                <div class="d-flex align-items-center gap-1">
+                                    <input type="date" id="horarios-reporte-desde" class="form-control form-control-sm" aria-label="Desde" onchange="horariosCambiarFechasCustom()">
+                                    <input type="date" id="horarios-reporte-hasta" class="form-control form-control-sm" aria-label="Hasta" onchange="horariosCambiarFechasCustom()">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="hor-perfil" id="horarios-reporte-perfil-card" style="display:none;">
+                            <span class="hor-avatar hor-avatar-grande" id="horarios-reporte-avatar"></span>
+                            <div class="hor-perfil-datos">
+                                <h4 id="horarios-reporte-nombre-operario">—</h4>
+                                <div class="hor-perfil-info" id="horarios-reporte-info-operario"></div>
+                            </div>
+                            <div class="hor-presentismo">
+                                <small>Presentismo del período</small>
+                                <strong id="rep-kpi-porcentaje-asistencia">—</strong>
+                                <div class="hor-progreso"><div id="rep-presentismo-barra"></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card hor-calendario-card" id="horarios-reporte-calendario-card" style="display:none;">
+                    <div class="hor-cal-cabecera">
+                        <button type="button" class="hor-cal-nav" id="horarios-cal-anterior" onclick="horariosMoverMesCalendario(-1)" title="Mes anterior" aria-label="Mes anterior"><i class="bi bi-chevron-left"></i></button>
+                        <h6 id="horarios-cal-titulo">Calendario</h6>
+                        <button type="button" class="hor-cal-nav" id="horarios-cal-siguiente" onclick="horariosMoverMesCalendario(1)" title="Mes siguiente" aria-label="Mes siguiente"><i class="bi bi-chevron-right"></i></button>
+                    </div>
+                    <div class="hor-calendario" id="horarios-reporte-calendario"></div>
+                    <div class="hor-leyenda">
+                        <span class="hor-cal-presente">A horario</span>
+                        <span class="hor-cal-tolerancia">Toler.</span>
+                        <span class="hor-cal-tarde">Tarde</span>
+                        <span class="hor-cal-injustificada">Injust.</span>
+                        <span class="hor-cal-justificada">Justif.</span>
+                        <span class="hor-cal-franco">Franco</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="horarios-reporte-vacio" class="card hor-vacio">
+                <i class="bi bi-person-badge"></i>
+                Todavía no hay operarios cargados para mostrar un reporte.
+            </div>
+
+            <div id="horarios-reporte-contenido" style="display:none;">
+                <div class="hor-kpis mb-3">
+                    <button type="button" class="hor-kpi hor-kpi-presente" data-filtro="trabajados" aria-pressed="false" onclick="horariosFiltrarReporte('trabajados')"><span>Días trabajados</span><strong id="rep-kpi-dias-trabajados">0</strong></button>
+                    <div class="hor-kpi"><span>Horas normales</span><strong id="rep-kpi-horas-normales">0 hs</strong></div>
+                    <button type="button" class="hor-kpi hor-kpi-extra" data-filtro="extras" aria-pressed="false" onclick="horariosFiltrarReporte('extras')"><span>Horas extras</span><strong id="rep-kpi-horas-extras">0</strong></button>
+                    <button type="button" class="hor-kpi hor-kpi-tolerancia" data-filtro="tolerancia" aria-pressed="false" onclick="horariosFiltrarReporte('tolerancia')"><span>En tolerancia</span><strong id="rep-kpi-tolerancias">0</strong></button>
+                    <button type="button" class="hor-kpi hor-kpi-tarde" data-filtro="tarde" aria-pressed="false" onclick="horariosFiltrarReporte('tarde')"><span>Llegadas tarde</span><strong id="rep-kpi-tardes">0</strong><small id="rep-kpi-tardes-detalle"></small></button>
+                    <button type="button" class="hor-kpi hor-kpi-injustificada" data-filtro="falta_injustificada" aria-pressed="false" onclick="horariosFiltrarReporte('falta_injustificada')"><span>Faltas injustificadas</span><strong id="rep-kpi-injustificadas">0</strong></button>
+                    <button type="button" class="hor-kpi hor-kpi-justificada" data-filtro="falta_justificada" aria-pressed="false" onclick="horariosFiltrarReporte('falta_justificada')"><span>Faltas justificadas</span><strong id="rep-kpi-justificadas">0</strong></button>
+                    <button type="button" class="hor-kpi hor-kpi-franco" data-filtro="franco" aria-pressed="false" onclick="horariosFiltrarReporte('franco')"><span>Francos / Licencias</span><strong id="rep-kpi-francos">0</strong></button>
+                </div>
+
+                <div class="card">
+                    <div class="card-header py-2 px-3 hor-card-header">
+                        <h6 class="mb-0 fw-bold"><i class="bi bi-table me-2"></i>Detalle día por día</h6>
+                        <button type="button" class="hor-filtro-activo" id="horarios-reporte-filtro-activo" style="display:none;" title="Quitar filtro" onclick="horariosFiltrarReporte('')"></button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table mb-0 align-middle hor-tabla hor-tabla-apilable">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Turno</th>
+                                        <th>Estado</th>
+                                        <th>Horario</th>
+                                        <th class="text-end">Horas</th>
+                                        <th class="text-end">Extras</th>
+                                        <th class="text-center">Tardanza</th>
+                                        <th>Observaciones</th>
+                                        <th class="text-center"><span class="visually-hidden">Editar</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="horarios-reporte-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer text-muted text-center py-2" id="horarios-reporte-footer">0 registros.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vista 3: Personal -->
+        <div id="horarios-vista-personal" style="display:none;">
+            <div class="card mb-3">
+                <div class="card-body py-2 px-3">
+                    <input type="search" id="horarios-personal-search" class="form-control form-control-sm" style="max-width: 400px;" aria-label="Buscar operario" placeholder="Buscar por nombre, puesto o DNI" oninput="renderizarTablaPersonal()">
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table mb-0 align-middle hor-tabla hor-tabla-apilable">
+                            <thead>
+                                <tr>
+                                    <th>Nombre y apellido</th>
+                                    <th>DNI / Legajo</th>
+                                    <th>Puesto / Área</th>
+                                    <th class="text-center">Estado</th>
+                                    <th class="text-center"><span class="visually-hidden">Acciones</span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="horarios-personal-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer text-muted text-center py-2" id="horarios-personal-footer">0 operarios.</div>
             </div>
         </div>
 
@@ -1743,6 +1993,130 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendido</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════ MODAL: AGREGAR / EDITAR OPERARIO ══════════ -->
+    <div class="modal fade" id="modalOperario" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-md">
+            <div class="modal-content" style="background: var(--modal-body-bg); border: 1px solid var(--input-border);">
+                <div class="modal-header" style="background: var(--modal-header-bg); border-bottom: 1px solid var(--input-border);">
+                    <h5 class="modal-title" id="modalOperarioTitle"><i class="bi bi-person-plus-fill me-2"></i>Nuevo Operario</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="formOperario" onsubmit="event.preventDefault(); horariosGuardarOperario();">
+                        <input type="hidden" id="operario-id">
+                        <div class="mb-3">
+                            <label class="form-label">Nombre y Apellido <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="operario-nombre" placeholder="Ej: Juan Pérez" required>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label">DNI o Legajo</label>
+                                <input type="text" class="form-control" id="operario-dni" placeholder="Ej: 38123456">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Teléfono</label>
+                                <input type="text" class="form-control" id="operario-telefono" placeholder="Ej: 11 2345-6789">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="operario-puesto">Puesto / Área</label>
+                            <input type="text" class="form-control" id="operario-puesto" list="operario-puestos-list" placeholder="Ej: Extrusión, Confección">
+                            <datalist id="operario-puestos-list"></datalist>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notas / Observaciones</label>
+                            <textarea class="form-control" id="operario-notas" rows="2" placeholder="Observaciones adicionales..."></textarea>
+                        </div>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="operario-activo" checked>
+                            <label class="form-check-label" for="operario-activo">Operario Activo (visible en planilla diaria)</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer" style="background: var(--modal-footer-bg); border-top: 1px solid var(--input-border);">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="operario-btn-guardar-otro" onclick="horariosGuardarOperario(true)">
+                        Guardar y agregar otro
+                    </button>
+                    <button type="submit" form="formOperario" class="btn btn-primary btn-sm">
+                        <i class="bi bi-floppy me-1"></i>Guardar operario
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════ MODAL: EDITAR ASISTENCIA HISTÓRICA ══════════ -->
+    <div class="modal fade" id="modalEditarAsistencia" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-md">
+            <div class="modal-content" style="background: var(--modal-body-bg); border: 1px solid var(--input-border);">
+                <div class="modal-header" style="background: var(--modal-header-bg); border-bottom: 1px solid var(--input-border);">
+                    <h5 class="modal-title"><i class="bi bi-clock-history me-2"></i>Asistencia: <span id="edit-asistencia-operario-nombre"></span></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="edit-asistencia-id">
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Fecha</label>
+                            <input type="date" class="form-control" id="edit-asistencia-fecha" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Estado</label>
+                            <select class="form-select" id="edit-asistencia-estado" onchange="horariosCambiarEstadoModal()">
+                                <option value="presente">🟢 A Horario (Presente)</option>
+                                <option value="tolerancia">🟩 En Tolerancia</option>
+                                <option value="tarde">🟡 Llegada Tarde</option>
+                                <option value="falta_injustificada">🔴 Falta Injustificada</option>
+                                <option value="falta_justificada">🔵 Falta Justificada</option>
+                                <option value="franco">⚪ Franco / Licencia</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-4">
+                            <label class="form-label small">Entrada (Llegada)</label>
+                            <input type="time" class="form-control text-center" id="edit-asistencia-entrada" oninput="horariosProcesarLlegadaModal()">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small">Salida</label>
+                            <input type="time" class="form-control text-center" id="edit-asistencia-salida" oninput="horariosCalcularHorasModal()">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small">Horas Norm.</label>
+                            <input type="number" step="any" min="0" class="form-control text-center" id="edit-asistencia-horas">
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Minutos Tardanza</label>
+                            <input type="number" step="1" min="0" class="form-control" id="edit-asistencia-tarde" placeholder="0">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Horas Extras</label>
+                            <input type="number" step="any" min="0" class="form-control" id="edit-asistencia-extras" placeholder="0">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Observaciones / Motivo</label>
+                        <textarea class="form-control" id="edit-asistencia-obs" rows="2" placeholder="Motivo de falta, tarea extra, etc."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer d-flex justify-content-between" style="background: var(--modal-footer-bg); border-top: 1px solid var(--input-border);">
+                    <button type="button" class="btn btn-outline-danger btn-sm" id="edit-asistencia-btn-eliminar" onclick="horariosEliminarRegistroAsistencia()">
+                        <i class="bi bi-trash-fill me-1"></i>Eliminar Registro
+                    </button>
+                    <div>
+                        <button type="button" class="btn btn-secondary btn-sm me-1" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary btn-sm" onclick="horariosGuardarEdicionAsistencia()">
+                            <i class="bi bi-floppy me-1"></i>Guardar Cambios
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

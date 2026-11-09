@@ -102,6 +102,7 @@ const panelDisplayNames = {
     'pagos': 'Pagos',
     'control': 'Control',
     'termos': '<i class="bi bi-rulers"></i> Termo',
+    'horarios': '<i class="bi bi-clock-history"></i> Control Horario',
     'configuracion': 'Configuración'
 };
 
@@ -207,17 +208,14 @@ export function cacheDOMElements() {
     state.elements.dashboardArticulosComprar = document.getElementById('dashboard-articulos-comprar');
     state.elements.dashboardKilosComprados = document.getElementById('dashboard-kilos-comprados');
     state.elements.dashboardArticulosFaltantes = document.getElementById('dashboard-articulos-faltantes');
-    state.elements.monthlyKilosChartContainer = document.getElementById('monthlyKilosChart');
     state.elements.dashboardClock = document.getElementById('dashboard-clock');
     state.elements.dashboardTemp = document.getElementById('dashboard-temp');
     state.elements.dashboardNovedadesCount = document.getElementById('dashboard-novedades-count');
     state.elements.dashboardNovedadesList = document.getElementById('dashboard-novedades-list');
     state.elements.dashboardNovedadesFecha = document.getElementById('dashboard-novedades-fecha');
 
-    // Loading screen elements
-    state.elements.loadingScreen = document.getElementById('loading-screen');
-    state.elements.progressBar = document.getElementById('progress-bar');
-    state.elements.loadingText = document.getElementById('loading-text');
+    // Mensaje de inicio
+    state.elements.inicioMensaje = document.getElementById('inicio-mensaje');
 
     // Faltantes elements
     state.elements.faltantesTableBody = document.getElementById('tabla-faltantes-body');
@@ -235,112 +233,76 @@ export function cacheDOMElements() {
     state.elements.modalVersionInfoBody = state.elements.modalVersionInfo ? state.elements.modalVersionInfo.querySelector('.modal-body') : null;
 }
 
-/**
- * Updates the loading progress bar and text.
- */
-export function updateLoadingProgress(progress) {
-    if (state.elements.progressBar) {
-        state.elements.progressBar.style.width = progress + '%';
-    }
-    if (state.elements.loadingText) {
-        if (progress < 100) {
-            state.elements.loadingText.innerText = state.loadingTexts[state.loadingTextIndex];
-        } else {
-            state.elements.loadingText.innerText = "¡Listo!";
-        }
-    }
+const DURACION_SALUDO_MS = 1800;
+const DURACION_SALIDA_MENSAJE_MS = 900;
+
+function cambiarMensajeInicio(texto) {
+    const el = state.elements.inicioMensaje;
+    if (!el) return;
+    el.classList.remove('text-enter');
+    void el.offsetWidth;
+    el.classList.add('text-exit');
+    setTimeout(() => {
+        el.textContent = texto;
+        el.classList.remove('text-exit');
+        void el.offsetWidth;
+        el.classList.add('text-enter');
+    }, 340);
 }
 
-/**
- * Shows the loading screen and starts the animation.
- */
-export function showLoadingScreen() {
-    if (!state.elements.loadingScreen || !state.elements.loadingText) return;
+/** Muestra los mensajes de carga mientras el dashboard está en esqueleto. */
+export function mostrarEsqueletoInicio() {
+    const el = state.elements.inicioMensaje;
+    if (!el) return;
 
-    state.elements.loadingScreen.classList.remove('hidden');
-    state.elements.loadingScreen.style.display = 'flex';
-    state.elements.loadingScreen.style.opacity = '1';
-
-    const msgs = document.getElementById('loading-messages');
-    const ready = document.getElementById('loading-ready');
-    if (msgs) msgs.style.display = 'block';
-    if (ready) { ready.classList.remove('visible'); ready.style.display = 'none'; }
-
-    state.loadingProgress = 0;
-    state.loadingTextIndex = 0;
-    state.elements.loadingText.textContent = state.loadingTexts[0];
-    state.elements.loadingText.classList.remove('text-exit');
-    void state.elements.loadingText.offsetWidth;
-    state.elements.loadingText.classList.add('text-enter');
-
+    const textos = state.loadingTexts;
+    let indice = Math.floor(Math.random() * textos.length);
+    el.textContent = textos[indice];
+    el.classList.add('text-enter');
     state.textInterval = setInterval(() => {
-        const el = state.elements.loadingText;
-        if (!el) return;
-        el.classList.remove('text-enter');
-        void el.offsetWidth;
-        el.classList.add('text-exit');
-        setTimeout(() => {
-            state.loadingTextIndex = (state.loadingTextIndex + 1) % state.loadingTexts.length;
-            el.textContent = state.loadingTexts[state.loadingTextIndex];
-            el.classList.remove('text-exit');
-            void el.offsetWidth;
-            el.classList.add('text-enter');
-        }, 340);
+        indice = (indice + 1) % textos.length;
+        cambiarMensajeInicio(textos[indice]);
     }, 2000);
 }
 
-/**
- * Muestra el estado "listo": saludo del día + botón Iniciar.
- */
-export function hideLoadingScreen() {
-    if (!state.elements.loadingScreen) return;
-    clearInterval(state.loadingInterval);
+/** Con los datos listos, quita el esqueleto, muestra el saludo del día y lo retira con una salida suave. */
+export function finalizarEsqueletoInicio() {
     clearInterval(state.textInterval);
 
-    const dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
-    const dia = dias[new Date().getDay()];
-    const greetingTemplates = [
-        d => `¡Ey, feliz ${d}!`,
-        d => `¡Hola! Feliz ${d}`,
-        d => `¡Feliz ${d}!`,
-        d => `¡Buen ${d}!`,
-        d => `¡${d.charAt(0).toUpperCase() + d.slice(1)} con todo!`,
-        d => `¡Que sea un gran ${d}!`,
-        d => `¡Buenas, feliz ${d}!`,
+    const ahora = new Date();
+    const dia = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][ahora.getDay()];
+    const diaMayuscula = dia.charAt(0).toUpperCase() + dia.slice(1);
+    const saludoHora = ahora.getHours() < 12 ? 'Buen día' : ahora.getHours() < 20 ? 'Buenas tardes' : 'Buenas noches';
+    const saludos = [
+        `¡Ey, feliz ${dia}!`,
+        `¡Hola! Feliz ${dia}`,
+        `¡Feliz ${dia}!`,
+        `¡Buen ${dia}!`,
+        `¡${diaMayuscula} con todo!`,
+        `¡Que sea un gran ${dia}!`,
+        `¡Buenas, feliz ${dia}!`,
+        `¡Arrancamos este ${dia}!`,
+        `¡Vamos que este ${dia} sale redondo!`,
+        `¡A ponerle ganas a este ${dia}!`,
+        `¡Hola, equipo! Feliz ${dia}`,
+        `¡Este ${dia} pinta bien!`,
+        `¡${diaMayuscula} de los buenos!`,
+        `¡${saludoHora}! Feliz ${dia}`,
+        `¡${saludoHora}, equipo!`
     ];
-    const greeting = greetingTemplates[Math.floor(Math.random() * greetingTemplates.length)](dia);
-    const greetingEl = document.getElementById('loading-day-greeting');
-    if (greetingEl) greetingEl.textContent = greeting;
 
-    const msgs  = document.getElementById('loading-messages');
-    const ready = document.getElementById('loading-ready');
+    cambiarMensajeInicio(saludos[Math.floor(Math.random() * saludos.length)]);
+    document.body.classList.remove('app-cargando');
+    window.mostrarPanel('dashboard');
 
-    if (msgs) {
-        const el = state.elements.loadingText;
-        if (el) {
-            el.classList.remove('text-enter');
-            void el.offsetWidth;
-            el.classList.add('text-exit');
-        }
-        setTimeout(() => {
-            if (msgs)  msgs.style.display  = 'none';
-            if (ready) { ready.style.display = 'flex'; ready.classList.add('visible'); }
-        }, 340);
-    } else {
-        if (ready) { ready.style.display = 'flex'; ready.classList.add('visible'); }
-    }
+    setTimeout(() => {
+        const el = state.elements.inicioMensaje;
+        if (!el) return;
+        el.classList.remove('text-enter');
+        el.classList.add('inicio-salida');
+        setTimeout(() => el.remove(), DURACION_SALIDA_MENSAJE_MS);
+    }, DURACION_SALUDO_MS);
 }
-
-/** Llamado por el botón Iniciar en la pantalla de carga */
-window.iniciarDesdeLoading = function() {
-    if (state.elements.loadingScreen) {
-        state.elements.loadingScreen.classList.add('hidden');
-        setTimeout(() => {
-            state.elements.loadingScreen.style.display = 'none';
-            window.mostrarPanel('dashboard');
-        }, 560);
-    }
-};
 
 /**
  * Applies the correct visual state to the navbar based on search mode and screen size.
@@ -394,8 +356,8 @@ function updateSearchFilterOptions(panelId) {
             select.innerHTML += '<option value="proveedorArticulo">Proveedor</option>';
             state.currentSearchFilter = 'nombreArticulo';
         } else {
-            select.innerHTML += '<option value="none">Sin filtro</option>';
-            state.currentSearchFilter = 'none';
+            select.innerHTML += '<option value="nombreAnalisis">Artículo</option>';
+            state.currentSearchFilter = 'nombreAnalisis';
         }
     } else if (panelId === 'contactos') {
         if (state.activeContactosTab === 'proveedores') {
@@ -420,6 +382,10 @@ function updateSearchFilterOptions(panelId) {
     } else if (panelId === 'pagos') {
         select.innerHTML += '<option value="proveedorPlasticoPago">Proveedor</option>';
         state.currentSearchFilter = 'proveedorPlasticoPago';
+    } else if (panelId === 'horarios') {
+        select.innerHTML += '<option value="nombreOperario">Operario</option>';
+        select.innerHTML += '<option value="puestoOperario">Puesto</option>';
+        state.currentSearchFilter = 'nombreOperario';
     } else if (panelId === 'termos') {
         select.innerHTML += '<option value="none">Sin filtro</option>';
         state.currentSearchFilter = 'none';
@@ -445,6 +411,8 @@ window.mostrarPanel = function(panelId, event) {
     document.getElementById('panel-faltantes').style.display = 'none';
     document.getElementById('panel-pagos').style.display = 'none';
     document.getElementById('panel-control').style.display = 'none';
+    const panelHorarios = document.getElementById('panel-horarios');
+    if (panelHorarios) panelHorarios.style.display = 'none';
     document.getElementById('panel-termos').style.display = 'none';
     document.getElementById('panel-configuracion').style.display = 'none';
     // Hide bobinas cart bar when leaving the panel
@@ -458,6 +426,8 @@ window.mostrarPanel = function(panelId, event) {
     });
 
     updateSearchFilterOptions(panelId);
+    // Se limpia antes de dibujar: un texto previo no debe filtrar la lista al abrir el panel.
+    if (state.elements.buscador) state.elements.buscador.value = '';
 
     let panelName = panelDisplayNames[panelId] || 'Panel';
     if (panelId === 'configuracion') {
@@ -496,6 +466,10 @@ window.mostrarPanel = function(panelId, event) {
         document.getElementById('panel-control').style.display = 'block';
         if (document.getElementById('nav-control')) document.getElementById('nav-control').classList.add('active');
         panelHandlers['control']?.();
+    } else if (panelId === 'horarios') {
+        if (panelHorarios) panelHorarios.style.display = 'block';
+        if (document.getElementById('nav-horarios')) document.getElementById('nav-horarios').classList.add('active');
+        panelHandlers['horarios']?.();
     } else if (panelId === 'termos') {
         document.getElementById('panel-termos').style.display = 'block';
         if (document.getElementById('nav-termos')) document.getElementById('nav-termos').classList.add('active');
@@ -589,17 +563,6 @@ export function setupUIListeners() {
         state.elements.modalComisionista.addEventListener('show.bs.modal', function () {
             console.log("Evento 'show.bs.modal' del Modal Comisionista disparado por Bootstrap.");
         });
-    }
-
-    // Resize observer for the dashboard chart
-    if (state.elements.monthlyKilosChartContainer) {
-        new ResizeObserver(entries => {
-            for (let entry of entries) {
-                if (entry.target.id === 'monthlyKilosChart') {
-                    panelHandlers['renderMonthlyKilosChart']?.();
-                }
-            }
-        }).observe(state.elements.monthlyKilosChartContainer);
     }
 
     // Resize observer for the pagos chart

@@ -1,5 +1,14 @@
 import { state } from './state.js';
 import { getUserCollection, doc, addDoc, updateDoc, deleteDoc } from './firebase.js';
+import { renderizarConfigHorario } from './horarios.js';
+
+window.switchConfiguracionTab = function(tab) {
+    ['insumos', 'contactos', 'horario', 'sistema'].forEach(nombre => {
+        document.getElementById(`tab-btn-config-${nombre}`).classList.toggle('active', nombre === tab);
+        document.getElementById(`config-seccion-${nombre}`).style.display = nombre === tab ? '' : 'none';
+    });
+    if (tab === 'horario') renderizarConfigHorario();
+};
 
 /**
  * Renders the list of categories in the configuration panel.

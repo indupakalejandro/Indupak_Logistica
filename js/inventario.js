@@ -99,7 +99,7 @@ window.ajustarStockDirecto = async function(id, direction) {
 
     try {
         await updateDoc(doc(getUserCollection('inventario'), id), { cantidadActual: nuevoStock });
-        await registrarMovimiento(id, tipoMovimiento, Math.abs(delta), stockAnterior, nuevoStock, responsable, `Ajuste directo desde tabla`);
+        await registrarMovimiento(id, tipoMovimiento, Math.abs(nuevoStock - stockAnterior), stockAnterior, nuevoStock, responsable, `Ajuste directo desde tabla`);
     } catch (e) {
         console.error("Error al ajustar cantidad: ", e);
         window.showAlert("Error al ajustar la cantidad. Intente de nuevo.");
@@ -346,6 +346,7 @@ async function registrarMovimiento(idArticulo, tipo, cantidad, stockAnterior, st
             responsable,
             notas
         });
+        state._historialCache = null;
         console.log("Movimiento registrado para artículo: ", idArticulo);
     } catch (e) {
         console.error("Error al registrar movimiento: ", e);

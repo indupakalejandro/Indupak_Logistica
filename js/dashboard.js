@@ -5,7 +5,7 @@ import { getUserCollection, doc, updateDoc, addDoc, deleteDoc } from './firebase
 const SUPPLIER_COLORS = ['#60D040','#9060e0','#fd7e14','#20c997','#e83e8c','#0dcaf0','#ffc107','#6610f2'];
 
 /**
- * Renders the dashboard with key metrics and the monthly kilos chart.
+ * Renders the dashboard with key metrics.
  */
 export function renderizarDashboard() {
     if (state.elements.dashboardPagosPendientes) {
@@ -28,7 +28,6 @@ export function renderizarDashboard() {
 
     renderDashboardNovedades();
     renderizarListaComprasDashboard();
-    renderMonthlyKilosChart();
 }
 
 export function startDashboardClock() {
@@ -167,15 +166,13 @@ window.toggleNovedad = async function(ctrlId, key) {
 
 /**
  * Renders the bar chart for monthly kilos purchased.
- * @param {HTMLElement} [containerEl] - defaults to the dashboard chart container
- * @param {HTMLElement} [legendEl] - defaults to #chart-legend
+ * @param {HTMLElement} container
+ * @param {HTMLElement} [legendElFinal]
  */
-export function renderMonthlyKilosChart(containerEl, legendEl) {
-    const container = containerEl || state.elements.monthlyKilosChartContainer;
+export function renderMonthlyKilosChart(container, legendElFinal) {
     if (!container) return;
 
     d3.select(container).selectAll("*").remove();
-    const legendElFinal = legendEl || document.getElementById('chart-legend');
     if (legendElFinal) legendElFinal.innerHTML = '';
 
     const allPayments = [...(state.paymentHistoryData || []), ...(state.pendingPaymentsData || [])];

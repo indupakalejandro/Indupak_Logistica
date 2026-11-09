@@ -24,10 +24,14 @@ export const state = {
     activeInsumosTab: 'inventario',
     _historialCache: null,
     elements: {},
-    // Loading screen
-    loadingProgress: 0, loadingTextIndex: 0,
-    loadingTexts: ["Calentando extrusoras", "Bobinando láminas", "Controlando soldadura"],
-    loadingInterval: null, textInterval: null,
+    // Mensajes de inicio
+    loadingTexts: [
+        "Calentando extrusoras", "Bobinando láminas", "Controlando soldadura",
+        "Inflando el globo de film", "Midiendo micrones", "Ajustando la tensión",
+        "Afilando cuchillas", "Contando bobinas", "Pesando los kilos del día",
+        "Enfriando rodillos", "Acomodando pallets", "Cebando el primer mate"
+    ],
+    textInterval: null,
     // Provider card
     showProviderCardTimer: null, hideProviderCardTimer: null,
     // Clock
@@ -40,7 +44,15 @@ export const state = {
     bobinasHistorialData: [],
     bobinasCartItems: [],
     activeBobinasTab: 'pendientes',
-    bobinasSolicitudesPendientes: []
+    bobinasSolicitudesPendientes: [],
+    // Control Horario / Personal module
+    operariosData: [],
+    asistenciaData: [],
+    activeHorariosTab: 'diario',
+    horariosReporteOperarioId: '',
+    horariosReporteRango: 'mes_actual',
+    horariosReporteDesde: '',
+    horariosReporteHasta: ''
 };
 
 export const totalCollectionsToLoad = Object.keys(state.dataLoadedFlags).length;

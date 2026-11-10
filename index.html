@@ -39,42 +39,62 @@
         <i class="bi bi-gear-fill"></i>
     </div>
 
-    <nav class="navbar navbar-expand-lg">
-        <div class="container-fluid d-flex justify-content-between align-items-center">
+    <div class="barra-app">
+        <nav class="dock" aria-label="Secciones">
+            <button type="button" class="dock-item active" id="nav-dashboard" data-panel="dashboard" title="Inicio" aria-label="Inicio" onclick="irAPanel('dashboard')">
+                <i class="bi bi-house dock-icono"></i><i class="bi bi-house-fill dock-icono-activo"></i><span>Inicio</span>
+            </button>
+            <button type="button" class="dock-item" id="nav-insumos" data-panel="insumos" title="Insumos" aria-label="Insumos" onclick="irAPanel('insumos')">
+                <i class="bi bi-box-seam dock-icono"></i><i class="bi bi-box-seam-fill dock-icono-activo"></i><span>Insumos</span>
+            </button>
+            <button type="button" class="dock-item" id="nav-faltantes" data-panel="faltantes" title="Faltantes" aria-label="Faltantes" onclick="irAPanel('faltantes')">
+                <i class="bi bi-exclamation-triangle dock-icono"></i><i class="bi bi-exclamation-triangle-fill dock-icono-activo"></i><span>Faltantes</span>
+            </button>
+            <button type="button" class="dock-item" id="nav-horarios" data-panel="horarios" title="Horario" aria-label="Horario" onclick="irAPanel('horarios')">
+                <i class="bi bi-clock dock-icono"></i><i class="bi bi-clock-fill dock-icono-activo"></i><span>Horario</span>
+            </button>
+            <button type="button" class="dock-item dock-secundario" id="nav-pagos" data-panel="pagos" title="Pagos" aria-label="Pagos" onclick="irAPanel('pagos')">
+                <svg class="icono-svg dock-icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><defs><mask stroke="none" id="mascara-moneda-atras-2"><rect width="24" height="24" fill="#fff"/><circle cx="9.3" cy="15" r="7.6" fill="#000"/></mask></defs><g mask="url(#mascara-moneda-atras-2)"><circle cx="15" cy="8.6" r="6"/><circle cx="15" cy="8.6" r="4.2" stroke-width="1.1"/></g><circle cx="9.3" cy="15" r="6"/><circle cx="9.3" cy="15" r="4.2" stroke-width="1.1"/><text x="9.3" y="17.6" text-anchor="middle" font-size="7" font-weight="800" font-family="Inter, Arial, sans-serif" fill="currentColor" stroke="none">$</text></svg><svg class="icono-svg dock-icono-activo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><defs><mask stroke="none" id="mascara-moneda-atras-3"><rect width="24" height="24" fill="#000"/><circle cx="15" cy="8.6" r="6" fill="#fff"/><circle cx="15" cy="8.6" r="4.2" fill="none" stroke="#000" stroke-width="1.1"/><circle cx="9.3" cy="15" r="7.6" fill="#000"/></mask><mask stroke="none" id="mascara-moneda-adelante-4"><rect width="24" height="24" fill="#000"/><circle cx="9.3" cy="15" r="6" fill="#fff"/><circle cx="9.3" cy="15" r="4.2" fill="none" stroke="#000" stroke-width="1.1"/><text x="9.3" y="17.6" text-anchor="middle" font-size="7" font-weight="800" font-family="Inter, Arial, sans-serif" fill="#000" stroke="none">$</text></mask></defs><rect width="24" height="24" fill="currentColor" stroke="none" mask="url(#mascara-moneda-atras-3)"/><rect width="24" height="24" fill="currentColor" stroke="none" mask="url(#mascara-moneda-adelante-4)"/></svg><span>Pagos</span>
+            </button>
+            <button type="button" class="dock-item dock-secundario" id="nav-bobinas" data-panel="bobinas" title="Bobinas" aria-label="Bobinas" onclick="irAPanel('bobinas')">
+                <svg class="icono-svg dock-icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.2 10.9L12 5.5A4.5 4.5 0 0 0 6.6 12.7L13.8 18.1"/><path d="M6.6 12.7L2.1 14.9L9.3 20.3L13.8 18.1"/><circle cx="16.5" cy="14.5" r="4.5"/><path d="M16.5 14.5a1.2 1.2 0 0 1 2.4 0a2.3 2.3 0 0 1-4.6 0" stroke-width="1.3"/></svg><svg class="icono-svg dock-icono-activo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><defs><mask stroke="none" id="mascara-rollo-1"><rect width="24" height="24" fill="#fff"/><circle cx="16.5" cy="14.5" r="4.5" fill="#000"/></mask></defs><path d="M19.2 10.9L12 5.5A4.5 4.5 0 0 0 6.6 12.7L13.8 18.1Z" fill="currentColor" mask="url(#mascara-rollo-1)"/><path d="M6.6 12.7L2.1 14.9L9.3 20.3L13.8 18.1"/><circle cx="16.5" cy="14.5" r="4.5"/><path d="M16.5 14.5a1.2 1.2 0 0 1 2.4 0a2.3 2.3 0 0 1-4.6 0" stroke-width="1.3"/></svg><span>Bobinas</span>
+            </button>
+            <button type="button" class="dock-item dock-secundario" id="nav-contactos" data-panel="contactos" title="Contactos" aria-label="Contactos" onclick="irAPanel('contactos')">
+                <i class="bi bi-people dock-icono"></i><i class="bi bi-people-fill dock-icono-activo"></i><span>Contactos</span>
+            </button>
+            <button type="button" class="dock-item dock-secundario" id="nav-control" data-panel="control" title="Control" aria-label="Control" onclick="irAPanel('control')">
+                <i class="bi bi-clipboard2-check dock-icono"></i><i class="bi bi-clipboard2-check-fill dock-icono-activo"></i><span>Control</span>
+            </button>
+            <button type="button" class="dock-item dock-secundario" id="nav-termos" data-panel="termos" title="Termo" aria-label="Termo" onclick="irAPanel('termos')">
+                <i class="bi bi-layers dock-icono"></i><i class="bi bi-layers-fill dock-icono-activo"></i><span>Termo</span>
+            </button>
+            <button type="button" class="dock-item dock-mas" aria-label="Más secciones" aria-haspopup="dialog" onclick="abrirMenuMas()">
+                <i class="bi bi-grid dock-icono"></i><i class="bi bi-grid-fill dock-icono-activo"></i><span>Más</span>
+            </button>
+        </nav>
 
-            <div id="navbarTitleSection" class="d-flex align-items-center">
-                <a class="navbar-brand-item" id="fullTitle" href="#" onclick="mostrarPanel('dashboard', event)"><i class="bi bi-box-seam-fill"></i> <span><span class="brand-indupak">Indupak</span> <span class="brand-Logística">Logística</span></span> </a>
-            </div>
-
-            <div id="navbarNavSection" class="d-flex align-items-center">
-                <div class="dropdown">
-                    <button class="btn dropdown-toggle" type="button" id="dropdownMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
-                        Dashboard
-                    </button>
-                    <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton" id="navbarDropdownMenu">
-                        <li><a class="dropdown-item active" id="nav-dashboard" onclick="mostrarPanel('dashboard', event)">Dashboard</a></li>
-                        <li><a class="dropdown-item" id="nav-insumos" onclick="mostrarPanel('insumos', event)"><i class="bi bi-boxes"></i> Insumos</a></li>
-                        <li><a class="dropdown-item" id="nav-contactos" onclick="mostrarPanel('contactos', event)"><i class="bi bi-people-fill"></i> Contactos</a></li>
-                        <li><a class="dropdown-item" id="nav-bobinas" onclick="mostrarPanel('bobinas', event)"><i class="bi bi-layers-fill"></i> Stock Bobinas</a></li>
-                        <li><a class="dropdown-item" id="nav-faltantes" onclick="mostrarPanel('faltantes', event)"><i class="bi bi-exclamation-triangle-fill me-1"></i> Faltantes</a></li>
-                        <li><a class="dropdown-item" id="nav-pagos" onclick="mostrarPanel('pagos', event)"><i class="bi bi-cash-coin me-1"></i> Pagos</a></li>
-                        <li><a class="dropdown-item" id="nav-control" onclick="mostrarPanel('control', event)"><i class="bi bi-clipboard2-check-fill"></i> Control</a></li>
-                        <li><a class="dropdown-item" id="nav-horarios" onclick="mostrarPanel('horarios', event)"><i class="bi bi-clock-history me-1"></i> Control Horario</a></li>
-                        <li><a class="dropdown-item" id="nav-termos" onclick="mostrarPanel('termos', event)"><i class="bi bi-rulers me-1"></i> Termo</a></li>
-                    </ul>
-                </div>
-            </div>
-
-            <div id="navbarSearchSection" class="d-flex align-items-center">
-                <select class="form-select form-select-sm search-filter-select" id="searchFilterSelect">
-                    <!-- Options will be dynamically loaded by JavaScript -->
-                </select>
-                <input class="form-control form-control-sm search-input" type="search" id="buscador" placeholder="Buscar..." aria-label="Buscar">
-                <button class="btn btn-link search-toggle-button" id="searchToggleButton"><i class="bi bi-search"></i></button>
-            </div>
-
+        <div class="dock-buscador" id="navbarSearchSection">
+            <select class="form-select form-select-sm search-filter-select" id="searchFilterSelect" aria-label="Buscar por"></select>
+            <input class="form-control form-control-sm search-input" type="search" id="buscador" placeholder="Buscar..." aria-label="Buscar">
+            <button type="button" class="dock-item dock-buscador-boton" id="searchToggleButton" aria-label="Buscar" aria-expanded="false"><i class="bi bi-search"></i></button>
         </div>
-    </nav>
+    </div>
+
+    <!-- Hoja "Más" (celular) -->
+    <div class="hoja-mas" id="hoja-mas" aria-hidden="true">
+        <div class="hoja-mas-fondo" onclick="cerrarMenuMas()"></div>
+        <div class="hoja-mas-panel" role="dialog" aria-modal="true" aria-label="Más secciones">
+            <div class="hoja-mas-asa"></div>
+            <div class="hoja-mas-grilla">
+                <button type="button" class="hoja-mas-item" data-panel="pagos" onclick="irAPanel('pagos')"><svg class="icono-svg " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><defs><mask stroke="none" id="mascara-moneda-atras-5"><rect width="24" height="24" fill="#fff"/><circle cx="9.3" cy="15" r="7.6" fill="#000"/></mask></defs><g mask="url(#mascara-moneda-atras-5)"><circle cx="15" cy="8.6" r="6"/><circle cx="15" cy="8.6" r="4.2" stroke-width="1.1"/></g><circle cx="9.3" cy="15" r="6"/><circle cx="9.3" cy="15" r="4.2" stroke-width="1.1"/><text x="9.3" y="17.6" text-anchor="middle" font-size="7" font-weight="800" font-family="Inter, Arial, sans-serif" fill="currentColor" stroke="none">$</text></svg><span>Pagos</span></button>
+                <button type="button" class="hoja-mas-item" data-panel="bobinas" onclick="irAPanel('bobinas')"><svg class="icono-svg " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.2 10.9L12 5.5A4.5 4.5 0 0 0 6.6 12.7L13.8 18.1"/><path d="M6.6 12.7L2.1 14.9L9.3 20.3L13.8 18.1"/><circle cx="16.5" cy="14.5" r="4.5"/><path d="M16.5 14.5a1.2 1.2 0 0 1 2.4 0a2.3 2.3 0 0 1-4.6 0" stroke-width="1.3"/></svg><span>Bobinas</span></button>
+                <button type="button" class="hoja-mas-item" data-panel="contactos" onclick="irAPanel('contactos')"><i class="bi bi-people"></i><span>Contactos</span></button>
+                <button type="button" class="hoja-mas-item" data-panel="control" onclick="irAPanel('control')"><i class="bi bi-clipboard2-check"></i><span>Control</span></button>
+                <button type="button" class="hoja-mas-item" data-panel="termos" onclick="irAPanel('termos')"><i class="bi bi-layers"></i><span>Termo</span></button>
+                <button type="button" class="hoja-mas-item" data-panel="configuracion" onclick="irAPanel('configuracion')"><i class="bi bi-gear"></i><span>Configuración</span></button>
+            </div>
+        </div>
+    </div>
 
     <!-- Widget hora + clima al nivel de la navbar -->
     <div id="nav-time-widget">

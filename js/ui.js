@@ -93,17 +93,36 @@ document.getElementById('customConfirmBtn').addEventListener('click', () => {
 export const panelHandlers = {};
 
 // Map panel IDs to display names for the dropdown
-const panelDisplayNames = {
-    'dashboard': 'Dashboard',
-    'insumos': '<i class="bi bi-boxes"></i> Insumos',
-    'contactos': '<i class="bi bi-people-fill"></i> Contactos',
-    'bobinas': '<i class="bi bi-layers-fill"></i> Stock Bobinas',
-    'faltantes': 'Faltantes',
-    'pagos': 'Pagos',
-    'control': 'Control',
-    'termos': '<i class="bi bi-rulers"></i> Termo',
-    'horarios': '<i class="bi bi-clock-history"></i> Control Horario',
-    'configuracion': 'Configuración'
+// Secciones que en el celular viven en la hoja "Más".
+const SECCIONES_SECUNDARIAS = ['pagos', 'bobinas', 'contactos', 'control', 'termos', 'configuracion'];
+
+function marcarSeccionActiva(panelId) {
+    document.querySelectorAll('.dock-item[data-panel], .hoja-mas-item[data-panel]').forEach(boton => {
+        const activa = boton.dataset.panel === panelId;
+        boton.classList.toggle('active', activa);
+        if (activa) boton.setAttribute('aria-current', 'page');
+        else boton.removeAttribute('aria-current');
+    });
+    document.querySelector('.dock-mas')?.classList.toggle('active', SECCIONES_SECUNDARIAS.includes(panelId));
+}
+
+window.abrirMenuMas = function() {
+    const hoja = document.getElementById('hoja-mas');
+    hoja.classList.add('abierta');
+    hoja.setAttribute('aria-hidden', 'false');
+    hoja.querySelector('.hoja-mas-item')?.focus();
+};
+
+window.cerrarMenuMas = function() {
+    const hoja = document.getElementById('hoja-mas');
+    if (!hoja?.classList.contains('abierta')) return;
+    hoja.classList.remove('abierta');
+    hoja.setAttribute('aria-hidden', 'true');
+};
+
+window.irAPanel = function(panelId) {
+    window.cerrarMenuMas();
+    window.mostrarPanel(panelId);
 };
 
 /**
@@ -150,15 +169,10 @@ export function cacheDOMElements() {
     state.elements.emailContactoInput = document.getElementById('emailContacto');
     state.elements.telefonoContactoInput = document.getElementById('telefonoContacto');
     state.elements.providerCard = document.getElementById('providerCard');
-    state.elements.navbar = document.querySelector('.navbar');
     state.elements.searchToggleButton = document.getElementById('searchToggleButton');
-    state.elements.fullTitle = document.getElementById('fullTitle');
-    state.elements.navbarNavSection = document.getElementById('navbarNavSection');
     state.elements.navbarSearchSection = document.getElementById('navbarSearchSection');
     state.elements.themeToggle = document.getElementById('themeToggle');
     state.elements.themeToggleHotspot = document.getElementById('themeToggleHotspot');
-    state.elements.dropdownMenuButton = document.getElementById('dropdownMenuButton');
-    state.elements.navbarDropdownMenu = document.getElementById('navbarDropdownMenu');
 
     // Config elements
     state.elements.inputCategoria = document.getElementById('inputCategoria');
@@ -313,35 +327,23 @@ export function finalizarEsqueletoInicio() {
     }, DURACION_SALUDO_MS);
 }
 
-/**
- * Applies the correct visual state to the navbar based on search mode and screen size.
- */
+/** Abre o cierra el buscador; al cerrarlo se limpia el filtro de la ventana actual. */
 function applyNavbarState() {
-    if (!state.elements.navbar || !state.elements.searchToggleButton || !state.elements.buscador || !state.elements.fullTitle || !state.elements.navbarNavSection || !state.elements.navbarSearchSection || !state.elements.searchFilterSelect) {
-        console.warn("One or more navbar elements not found.");
-        return;
-    }
+    const caja = state.elements.navbarSearchSection;
+    const boton = state.elements.searchToggleButton;
+    const campo = state.elements.buscador;
+    if (!caja || !boton || !campo) return;
 
-    if (window.innerWidth > 991) {
-        if (state.isSearchMode) {
-            state.elements.navbar.classList.add('search-expanded');
-            state.elements.searchToggleButton.innerHTML = '<i class="bi bi-x-circle-fill"></i>';
-            state.elements.searchFilterSelect.style.display = 'block';
-            setTimeout(() => {
-                state.elements.buscador.focus();
-            }, 300);
-        } else {
-            state.elements.navbar.classList.remove('search-expanded');
-            state.elements.searchToggleButton.innerHTML = '<i class="bi bi-search"></i>';
-            state.elements.buscador.value = '';
-            window.mostrarPanel(state.currentActivePanel);
-            state.elements.searchFilterSelect.style.display = 'none';
-        }
-    } else {
-        state.elements.navbar.classList.remove('search-expanded');
-        state.elements.searchToggleButton.innerHTML = '<i class="bi bi-search"></i>';
-        state.elements.buscador.value = '';
-        state.elements.searchFilterSelect.style.display = 'none';
+    caja.classList.toggle('abierto', state.isSearchMode);
+    boton.innerHTML = state.isSearchMode ? '<i class="bi bi-x-lg"></i>' : '<i class="bi bi-search"></i>';
+    boton.setAttribute('aria-label', state.isSearchMode ? 'Cerrar búsqueda' : 'Buscar');
+    boton.setAttribute('aria-expanded', String(state.isSearchMode));
+
+    if (state.isSearchMode) {
+        campo.focus();
+    } else if (campo.value) {
+        campo.value = '';
+        panelHandlers[state.currentActivePanel]?.();
     }
 }
 
@@ -430,22 +432,11 @@ window.mostrarPanel = function(panelId, event) {
     if (bCartBar && panelId !== 'bobinas') bCartBar.style.display = 'none';
     if (bCartDetails) bCartDetails.style.display = 'none';
 
-    document.querySelectorAll('#navbarDropdownMenu .dropdown-item').forEach(link => {
-        link.classList.remove('active');
-    });
+    marcarSeccionActiva(panelId);
 
     updateSearchFilterOptions(panelId);
     // Se limpia antes de dibujar: un texto previo no debe filtrar la lista al abrir el panel.
     if (state.elements.buscador) state.elements.buscador.value = '';
-
-    let panelName = panelDisplayNames[panelId] || 'Panel';
-    if (panelId === 'configuracion') {
-        panelName = '<i class="bi bi-gear-fill"></i> Configuración';
-    }
-
-    if (state.elements.dropdownMenuButton) {
-        state.elements.dropdownMenuButton.innerHTML = panelName + ' <span class="caret"></span>';
-    }
 
     if (panelId === 'dashboard') {
         document.getElementById('panel-dashboard').style.display = 'block';
@@ -550,19 +541,23 @@ export function setupUIListeners() {
         });
     }
 
-    // Initialize navbar state and re-apply on resize
+    // Buscador desplegable y teclado: Escape cierra el buscador o la hoja "Más"
     applyNavbarState();
-    window.addEventListener('resize', applyNavbarState);
-
-    // Listener for the search bar toggle button
     if (state.elements.searchToggleButton) {
         state.elements.searchToggleButton.addEventListener('click', () => {
-            if (window.innerWidth > 991) {
-                state.isSearchMode = !state.isSearchMode;
-                applyNavbarState();
-            }
+            state.isSearchMode = !state.isSearchMode;
+            applyNavbarState();
         });
     }
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape') return;
+        if (document.getElementById('hoja-mas')?.classList.contains('abierta')) {
+            window.cerrarMenuMas();
+        } else if (state.isSearchMode) {
+            state.isSearchMode = false;
+            applyNavbarState();
+        }
+    });
 
     // Add event listener for Comisionista modal
     if (state.elements.modalComisionista) {

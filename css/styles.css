@@ -108,40 +108,22 @@
         }
 
         /* Curvatura continua G2: la misma medida se ve más chica en squircle, por eso la escala sube. */
+        /* Curvatura continua G2 solo en contenedores grandes y poco numerosos.
+           Aplicarla a botones, campos o tarjetas internas repetidas hace que Chrome deje partes de la página sin dibujar. */
         @supports (corner-shape: squircle) {
             :root {
-                --radius-g2-xs: 0.7rem;
-                --radius-g2-sm: 1rem;
-                --radius-g2-md: 1.35rem;
                 --radius-g2-lg: 1.65rem;
                 --radius-g2-xl: 2rem;
             }
-            .card,
+            .card:not(.card .card),
             .modal-content,
-            .table,
-            .form-control,
-            .form-select,
-            .btn,
-            .badge,
-            .nav-pills .nav-link,
-            .input-group-text,
-            .list-group,
-            .dropdown-menu,
-            .dropdown-item,
-            .navbar,
+            .dock,
+            .dock-buscador,
+            .hoja-mas-panel,
             #nav-time-widget,
             .novedades-panel,
             .chart-container,
-            .glass-toast,
-            .lista-compras-item,
-            .hor-tarjeta,
-            .hor-kpi,
-            .hor-ausencia,
-            .hor-cal-dia,
-            .hor-chip,
-            .hor-filtro-activo,
-            .hor-estado-operario,
-            .cfg-turno {
+            .glass-toast {
                 corner-shape: squircle;
             }
         }
@@ -254,373 +236,190 @@
         }
         html:has(body.light-mode) { scrollbar-color: rgba(30, 20, 50, 0.3) transparent; }
 
-        /* Navbar personalizada flotante y compacta */
-        .navbar {
-            background-color: var(--navbar-bg) !important;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid var(--input-border);
-            border-radius: 2rem;
+        /* Navegación tipo dock: íconos de línea, el activo relleno y con su nombre */
+        .barra-app {
             position: fixed;
             top: 0.75rem;
-            left: 50%;
-            transform: translateX(-50%);
-            box-shadow: 0 5px 20px var(--shadow-color);
+            left: 0;
+            right: 0;
             z-index: 1030;
-            padding: 0.25rem 1rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        /* Ancho específico para desktop */
-        @media (min-width: 992px) {
-            .navbar {
-                width: 480px;
-                max-width: 480px;
-            }
-        }
-        /* Ancho responsivo para tablets y móviles */
-        @media (max-width: 991px) {
-            .navbar {
-                width: calc(100% - 2rem);
-                max-width: none;
-            }
-        }
-
-        /* Estilos de las secciones de la Navbar */
-        #navbarTitleSection, #navbarNavSection {
-            display: flex;
-            align-items: center;
-            transition: all 0.3s ease-out;
-            flex-shrink: 0;
-        }
-
-        /* Sección de Título */
-        .navbar-brand-item {
-            white-space: nowrap;
-            overflow: hidden;
-            color: var(--navbar-text) !important;
-            display: flex;
-            align-items: center;
-            transition: max-width 0.3s ease-out, margin-right 0.3s ease-out;
-            padding: 0.25rem 0;
-            text-decoration: none !important;
-        }
-
-        #fullTitle {
-            opacity: 1;
-            max-width: 170px; /* Ajustado para el nuevo título */
-            pointer-events: auto;
-            flex-shrink: 1;
-            margin-right: 0.5rem;
-            display: flex;
-        }
-
-        /* Estilos para el texto "Indupak Logística" */
-        .brand-indupak {
-            font-weight: 700; /* Bold para Indupak */
-        }
-
-        .brand-Logística {
-            font-size: 0.7em; /* Tamaño más pequeño para Logística */
-            font-weight: 400; /* Normal para Logística */
-        }
-
-        #fullTitle span { /* El contenedor del texto y subtexto */
-            transition: opacity 0.3s ease-out, max-width 0.3s ease-out, margin-left 0.3s ease-out;
-            opacity: 1;
-            max-width: 100%;
-            margin-left: 0.2rem; /* REDUCED SPACE: Más cerca del icono */
-            pointer-events: auto;
-            display: flex;
-            align-items: baseline;
-        }
-
-        /* Sección de Navegación - Dropdown */
-        #navbarNavSection {
-            flex-grow: 1; /* Ocupa el espacio disponible */
-            flex-shrink: 1; /* Permite que se encoja */
-            min-width: 0; /* Importante para que el flex item se encoja si el contenido desborda */
-            display: flex;
-            justify-content: center; /* Centra el dropdown en el espacio */
-            align-items: center;
-            max-width: 180px; /* Limita el ancho máximo para dar espacio al botón de búsqueda */
-            margin-right: 0.75rem; /* Aumenta el margen para separar del buscador */
-        }
-
-        #navbarNavSection .dropdown-toggle {
-            background-color: transparent;
-            border: none;
-            color: var(--navbar-text);
-            font-weight: bold;
-            padding: 0.4rem 0.6rem;
-            font-size: 0.9rem;
-            white-space: nowrap;
-            display: flex;
-            align-items: center;
-            gap: 0.25rem;
-        }
-
-        #navbarNavSection .dropdown-toggle::after {
-            margin-left: 0.25em; /* Ajusta el espacio del caret */
-        }
-
-        #navbarNavSection .dropdown-menu {
-            background-color: var(--dropdown-bg);
-            backdrop-filter: blur(20px); /* Increased blur for dropdown menu */
-            -webkit-backdrop-filter: blur(20px); /* For Safari */
-            border: 1px solid var(--dropdown-border);
-            box-shadow: 0 5px 20px var(--shadow-color);
-            border-radius: var(--radius-g2-sm);
-            padding: 0.5rem 0;
-            min-width: 100%; /* Asegura que el menú sea al menos tan ancho como el botón */
-            text-align: center; /* Centra los items del dropdown */
-        }
-
-        #navbarNavSection .dropdown-item {
-            color: var(--dropdown-item-text);
-            padding: 0.5rem 1rem;
-            font-size: 0.9rem;
-            transition: background-color 0.2s ease, color 0.2s ease;
-        }
-
-        #navbarNavSection .dropdown-item:hover,
-        #navbarNavSection .dropdown-item:focus {
-            background-color: var(--dropdown-item-hover-bg);
-            color: var(--dropdown-item-text);
-        }
-
-        #navbarNavSection .dropdown-item.active {
-            background-color: var(--dropdown-item-active-bg);
-            color: var(--dropdown-item-text);
-            font-weight: bold;
-        }
-
-
-        /* Sección de Búsqueda (el contenedor que se transforma) */
-        #navbarSearchSection {
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            flex-grow: 0;
-            position: relative;
-
-            /* Estado inicial: circular */
-            width: 35px;
-            height: 35px;
-            background-color: var(--button-bg);
-            border: 1px solid var(--input-border);
-            border-radius: 50%;
-            box-shadow: 0 2px 10px var(--shadow-color);
-            transition: width 0.3s ease-out, border-radius 0.3s ease-out, padding 0.3s ease-out, background-color 0.3s ease-out, flex-grow 0.3s ease-out;
-            overflow: hidden;
-            cursor: pointer;
-            padding: 0;
-        }
-        /* Estado expandido de la sección de búsqueda */
-        .navbar.search-expanded #navbarSearchSection {
-            flex-grow: 1;
-            border-radius: var(--radius-g2-xl);
-            padding: 0 0.5rem 0 0.5rem;
-            cursor: default;
-            width: auto;
-        }
-
-        /* El input de búsqueda dentro de la sección que se transforma */
-        #navbarSearchSection .search-input {
-            flex-grow: 1;
-            width: 0;
-            opacity: 0;
-            padding: 0;
-            border: none;
-            background-color: transparent;
-            color: var(--text-color);
-            transition: width 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
-            pointer-events: none;
-            flex-shrink: 1;
-        }
-        .navbar.search-expanded #navbarSearchSection .search-input {
-            width: auto;
-            opacity: 1;
-            padding: 0.25rem 0.75rem;
-            pointer-events: auto;
-            margin-right: 5px;
-        }
-        /* Eliminar el borde azul y la sombra al enfocar el input de búsqueda */
-        #navbarSearchSection .search-input:focus {
-            border-color: transparent !important;
-            box-shadow: none !important;
-        }
-
-        /* El select de filtro dentro de la sección que se transforma */
-        #navbarSearchSection .search-filter-select {
-            width: 0;
-            opacity: 0;
-            padding: 0;
-            background-color: var(--input-bg); /* Glassmorphism background */
-            border: 1px solid var(--input-border); /* Glassmorphism border */
-            color: var(--text-color);
-            border-radius: var(--radius-g2-md); /* Rounded XL */
-            transition: width 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
-            pointer-events: none;
-            flex-shrink: 0; /* Prevents it from growing too much */
-            margin-right: 5px;
-            padding-right: 2rem; /* Add more padding to prevent overlap with arrow */
-            backdrop-filter: blur(8px); /* Glassmorphism effect on the select itself */
-            -webkit-backdrop-filter: blur(8px);
-        }
-        .navbar.search-expanded #navbarSearchSection .search-filter-select {
-            width: max-content; /* Adapt to content */
-            opacity: 1;
-            padding: 0.25rem 2rem 0.25rem 0.5rem; /* Increased right padding for arrow */
-            pointer-events: auto;
-            flex-shrink: 0; /* Ensure it doesn't shrink more than its content */
-        }
-        /* Estilos para las opciones del select */
-        #navbarSearchSection .search-filter-select option {
-            background-color: var(--background-end); /* Fondo oscuro para las opciones */
-            color: var(--text-color);
-            /* Intentando glassmorphism en las opciones - puede que no se renderice consistentemente en todos los navegadores */
-            backdrop-filter: blur(5px);
-            -webkit-backdrop-filter: blur(5px);
-            /* Nota: Los bordes redondeados en las opciones de un select nativo son generalmente ignorados por los navegadores. */
-        }
-        body.light-mode #navbarSearchSection .search-filter-select option {
-            background-color: var(--background-start); /* Fondo claro para las opciones en light mode */
-            color: var(--text-color);
-        }
-
-        /* El botón de lupa/X dentro de la sección de búsqueda */
-        #navbarSearchSection .search-toggle-button {
-            font-size: 1.2rem;
-            color: var(--navbar-text);
-            background-color: transparent;
-            border: none;
-            border-radius: 50%;
-            width: 35px;
-            height: 35px;
             display: flex;
             justify-content: center;
             align-items: center;
-            flex-shrink: 0;
+            gap: 0.5rem;
+            padding: 0 1rem;
+            pointer-events: none;
+        }
+        .barra-app > * { pointer-events: auto; }
+        .dock,
+        .dock-buscador {
+            display: flex;
+            align-items: center;
+            gap: 0.15rem;
+            padding: 0.3rem;
+            background: var(--navbar-bg);
+            backdrop-filter: blur(16px) saturate(1.4);
+            -webkit-backdrop-filter: blur(16px) saturate(1.4);
+            border: 1px solid var(--input-border);
+            border-radius: var(--radius-g2-pill);
+            box-shadow: 0 8px 24px var(--shadow-color);
+        }
+        .dock-item {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+            height: 2.5rem;
+            min-width: 2.5rem;
+            padding: 0 0.65rem;
+            border: 0;
+            border-radius: var(--radius-g2-pill);
+            background: transparent;
+            color: var(--navbar-text);
+            font-size: 0.85rem;
+            font-weight: 600;
             cursor: pointer;
-            z-index: 1;
-            transition: transform 0.3s ease-out, color 0.3s ease-out;
+            transition: background-color 0.3s ease, color 0.3s ease, gap 0.35s cubic-bezier(0.22, 1, 0.36, 1);
         }
-        
-        /* Ocultar el icono de "X" inicialmente */
-        #navbarSearchSection .search-toggle-button i.bi-x-circle-fill {
-            display: none;
-        }
-        /* Mostrar el icono de "X" y ocultar la lupa cuando la barra está expandida */
-        .navbar.search-expanded #navbarSearchSection .search-toggle-button i.bi-search {
-            display: none;
-        }
-        .navbar.search-expanded #navbarSearchSection .search-toggle-button i.bi-x-circle-fill {
-            display: inline-block;
-        }
-
-        /*
-            ESTADOS DE TRANSICIÓN PARA LOS ELEMENTOS DE LA BARRA CUANDO LA BÚSQUEDA ESTÁ EXPANDIDA
-        */
-        .navbar.search-expanded #fullTitle {
-            max-width: 50px;
-            margin-right: 0.5rem;
-        }
-        .navbar.search-expanded #fullTitle span {
-            opacity: 0;
+        .dock-item i { font-size: 1.15rem; line-height: 1; }
+        .icono-svg { width: 1.15rem; height: 1.15rem; flex: none; }
+        .dock-item.active .icono-svg.dock-icono-activo { display: inline-block; }
+        .hoja-mas-item .icono-svg { width: 1.5rem; height: 1.5rem; }
+        .dock-icono-activo { display: none; }
+        .dock-item span {
             max-width: 0;
-            margin-left: 0;
-            pointer-events: none;
-        }
-
-        /* Cuando la búsqueda está expandida, la sección de navegación se oculta */
-        .navbar.search-expanded #navbarNavSection {
+            overflow: hidden;
+            white-space: nowrap;
             opacity: 0;
-            max-width: 0;
-            pointer-events: none;
+            transition: max-width 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
         }
+        .dock-item:hover { background: color-mix(in srgb, var(--text-color) 12%, transparent); }
+        .dock-item.active { background: var(--accent-color); color: #fff; gap: 0.4rem; }
+        .dock-item.active .dock-icono { display: none; }
+        .dock-item.active .dock-icono-activo { display: inline-block; }
+        .dock-item.active span { max-width: 9rem; opacity: 1; }
+        .dock-item:focus-visible,
+        .hoja-mas-item:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
+        .dock-mas { display: none; }
 
+        /* Buscador: una lupa que se despliega */
+        .dock-buscador { gap: 0.3rem; }
+        .dock-buscador .search-input,
+        .dock-buscador .search-filter-select {
+            transition: max-width 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease, padding 0.35s ease;
+        }
+        /* Al cerrar, se oculta recién cuando termina de achicarse; al abrir, aparece al instante para poder escribir. */
+        .dock-buscador:not(.abierto) .search-input,
+        .dock-buscador:not(.abierto) .search-filter-select {
+            transition: max-width 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease, padding 0.35s ease, visibility 0s 0.35s;
+        }
+        .dock-buscador:not(.abierto) .search-input,
+        .dock-buscador:not(.abierto) .search-filter-select {
+            max-width: 0;
+            padding-left: 0;
+            padding-right: 0;
+            border-width: 0;
+            opacity: 0;
+            visibility: hidden;
+        }
+        .dock-buscador .search-input {
+            width: 14rem;
+            max-width: 14rem;
+            height: 2.1rem;
+            border-radius: var(--radius-g2-pill);
+            background: var(--input-bg);
+            color: var(--text-color);
+        }
+        .dock-buscador .search-input:focus { box-shadow: none; border-color: var(--accent-color); }
+        .dock-buscador .search-filter-select {
+            width: auto;
+            max-width: 9rem;
+            height: 2.1rem;
+            border-radius: var(--radius-g2-pill);
+            background-color: var(--input-bg);
+            color: var(--select-text);
+            font-size: 0.8rem;
+        }
+        .dock-buscador .search-filter-select option { background: var(--background-end); color: var(--select-text); }
+        .dock-buscador-boton:hover { background: color-mix(in srgb, var(--text-color) 12%, transparent); }
 
-        /* Media Queries for responsivity */
-        @media (max-width: 991px) { /* Tablet and Mobile */
+        /* Hoja "Más" del celular */
+        .hoja-mas { position: fixed; inset: 0; z-index: 1045; visibility: hidden; transition: visibility 0s 0.35s; }
+        .hoja-mas.abierta { visibility: visible; transition: none; }
+        .hoja-mas-fondo { position: absolute; inset: 0; background: rgba(10, 0, 25, 0.45); opacity: 0; transition: opacity 0.3s ease; }
+        .hoja-mas.abierta .hoja-mas-fondo { opacity: 1; }
+        .hoja-mas-panel {
+            position: absolute;
+            left: 0.5rem;
+            right: 0.5rem;
+            bottom: calc(0.5rem + env(safe-area-inset-bottom));
+            padding: 0.5rem 1rem 1rem;
+            background: color-mix(in srgb, var(--background-end) 88%, transparent);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--input-border);
+            border-radius: var(--radius-g2-xl);
+            box-shadow: 0 -8px 30px var(--shadow-color);
+            translate: 0 110%;
+            transition: translate 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .hoja-mas.abierta .hoja-mas-panel { translate: 0 0; }
+        .hoja-mas-asa { width: 2.5rem; height: 5px; margin: 0 auto 0.75rem; border-radius: var(--radius-g2-pill); background: color-mix(in srgb, var(--text-color) 35%, transparent); }
+        .hoja-mas-grilla { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
+        .hoja-mas-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.85rem 0.25rem;
+            border: 1px solid var(--input-border);
+            border-radius: var(--radius-g2-md);
+            background: color-mix(in srgb, var(--text-color) 6%, transparent);
+            color: var(--text-color);
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+        .hoja-mas-item i { font-size: 1.4rem; line-height: 1; }
+        .hoja-mas-item.active { background: var(--accent-color); border-color: var(--accent-color); color: #fff; }
+
+        /* En celular: barra inferior al alcance del pulgar, como en iPhone */
+        @media (max-width: 767.98px) {
             body {
-                padding-top: 5rem;
+                padding-top: 4rem;
+                padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
             }
-            .navbar {
-                width: calc(100% - 1rem);
-                padding: 0.25rem 0.5rem;
-                top: 0.5rem;
+            .barra-app { top: 0.5rem; justify-content: flex-end; padding: 0 0.5rem; }
+            .dock {
+                position: fixed;
+                left: 0.5rem;
+                right: 0.5rem;
+                bottom: calc(0.5rem + env(safe-area-inset-bottom));
+                justify-content: space-around;
+                padding: 0.3rem;
                 border-radius: var(--radius-g2-xl);
-                justify-content: space-between;
             }
-
-            /* Siempre icon-only title en móvil */
-            #fullTitle {
-                max-width: 100px !important;
-                margin-right: 0.5rem !important;
+            .dock-secundario { display: none; }
+            .dock-mas { display: inline-flex; }
+            .dock .dock-item {
+                flex: 1;
+                flex-direction: column;
+                height: auto;
+                padding: 0.35rem 0.2rem;
+                gap: 0.15rem;
+                font-size: 0.66rem;
+                background: transparent;
+                color: color-mix(in srgb, var(--text-color) 72%, transparent);
             }
-            #fullTitle span {
-                opacity: 0 !important;
-                max-width: 0 !important;
-                margin-left: 0 !important;
-                pointer-events: none !important;
-            }
-
-            /* En móvil, la sección de navegación siempre debe ser visible y el dropdown se comporta como un botón normal */
-            #navbarNavSection {
-                flex-grow: 1 !important;
-                opacity: 1 !important;
-                max-width: none !important; /* Permitir que ocupe todo el espacio */
-                pointer-events: auto !important;
-                justify-content: center;
-            }
-            /* Ocultar las zonas de scroll por hover en móvil, ya que el scroll es por toque */
-            .carousel-scroll-zone { /* This class is now unused, but keeping for safety */
-                display: none !important;
-            }
-            /* Asegurarse de que el contenido del carrusel se adapte en móvil */
-            #navbarNavSection .carousel-content { /* This class is now unused, but keeping for safety */
-                flex-grow: 1 !important;
-                justify-content: flex-start; /* Alinear al inicio */
-            }
-
-            /* Search input siempre expandido y responsive en móvil */
-            #navbarSearchSection {
-                flex-grow: 1 !important;
-                justify-content: flex-end !important;
-                width: auto !important;
-                border-radius: var(--radius-g2-xl) !important;
-                padding: 0.25rem 0.5rem !important;
-                height: 35px;
-            }
-            #navbarSearchSection .search-input {
-                width: auto !important;
-                opacity: 1 !important;
-                padding: 0.25rem 0.75rem !important;
-                pointer-events: auto !important;
-                max-width: 150px !important;
-            }
-            /* Ocultar el select de filtro en móvil */
-            #navbarSearchSection .search-filter-select {
-                display: none !important;
-                width: 0 !important;
-                opacity: 0 !important;
-                pointer-events: none !important;
-            }
-            #navbarSearchSection .search-toggle-button {
-                font-size: 1.1rem !important;
-                width: 30px !important;
-                height: 30px !important;
-            }
-            /* En móvil, el botón de búsqueda siempre es lupa, no X */
-            #navbarSearchSection .search-toggle-button i.bi-search {
-                display: inline-block !important;
-            }
-            #navbarSearchSection .search-toggle-button i.bi-x-circle-fill {
-                display: none !important;
-            }
+            .dock .dock-item i { font-size: 1.3rem; }
+            .dock .dock-item .icono-svg { width: 1.4rem; height: 1.4rem; }
+            .dock .dock-item span { max-width: none; opacity: 1; }
+            .dock .dock-item.active { color: var(--accent-color); }
+            .dock-buscador.abierto { flex: 1; }
+            .dock-buscador.abierto .search-input { flex: 1; width: auto; max-width: none; }
+            .dock-buscador .search-filter-select { display: none; }
+            .bobinas-cart-bar { bottom: calc(6.25rem + env(safe-area-inset-bottom)); }
+            /* Cart details panel (above bar) */
+        #bobinas-cart-details { bottom: calc(6.25rem + 56px + env(safe-area-inset-bottom)); }
         }
 
         /* --- Estilos del resto de la aplicación --- */
@@ -634,6 +433,13 @@
             margin-bottom: var(--bento-gap);
             color: var(--text-color);
             overflow: hidden; /* Asegura que el contenido se recorte con el border-radius */
+        }
+        /* Una tarjeta dentro de otra ya está sobre vidrio: volver a desenfocar no se ve y, con listas largas
+           (como los ítems de un formulario de Control), Chrome deja partes de la página sin dibujar. */
+        .card .card {
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            box-shadow: 0 2px 8px var(--shadow-color);
         }
         .card-header {
             background-color: var(--table-header-bg) !important; /* Usar variable para coherencia */
@@ -1410,19 +1216,29 @@
         .esqueleto { pointer-events: none; }
 
         /* La barra espera fuera de pantalla y entra cuando termina la carga. */
-        body.app-cargando .navbar,
+        body.app-cargando .dock,
+        body.app-cargando .dock-buscador,
         body.app-cargando #nav-time-widget {
             opacity: 0;
             translate: 0 -140%;
             pointer-events: none;
         }
-        body:not(.app-cargando) .navbar,
+        body:not(.app-cargando) .dock,
+        body:not(.app-cargando) .dock-buscador,
         body:not(.app-cargando) #nav-time-widget {
             animation: barraEntrada 0.8s cubic-bezier(0.22, 1, 0.36, 1) backwards;
         }
         @keyframes barraEntrada {
             from { opacity: 0; translate: 0 -140%; }
             to   { opacity: 1; translate: 0 0; }
+        }
+        @keyframes barraEntradaAbajo {
+            from { opacity: 0; translate: 0 140%; }
+            to   { opacity: 1; translate: 0 0; }
+        }
+        @media (max-width: 767.98px) {
+            body.app-cargando .dock { translate: 0 140%; }
+            body:not(.app-cargando) .dock { animation-name: barraEntradaAbajo; }
         }
 
         /* Cada bloque del dashboard sale del esqueleto cuando llegan sus propios datos. */
@@ -1474,9 +1290,11 @@
         @keyframes skel-pulso { 50% { opacity: 0.55; } }
         @keyframes barraAparece { from { opacity: 0; } }
         @media (prefers-reduced-motion: reduce) {
-            body.app-cargando .navbar,
+            body.app-cargando .dock,
+        body.app-cargando .dock-buscador,
             body.app-cargando #nav-time-widget { translate: none; }
-            body:not(.app-cargando) .navbar,
+            body:not(.app-cargando) .dock,
+        body:not(.app-cargando) .dock-buscador,
             body:not(.app-cargando) #nav-time-widget { animation-name: barraAparece; }
             .esqueleto .dash-btn-icon,
             .esqueleto .dash-btn-label,

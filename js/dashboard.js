@@ -1,5 +1,11 @@
 import { state } from './state.js';
 import { getUserCollection, doc, updateDoc, addDoc, deleteDoc } from './firebase.js';
+import { formatCantidad, marcarBloqueListo } from './ui.js';
+import { obtenerPrevisionCompras } from './analisis.js';
+import { resumenEquipoDelMes } from './horarios.js';
+
+const DIAS_PREVISION = 90;
+let ultimaPrevision = 0;
 
 // Paleta de colores para proveedores
 const SUPPLIER_COLORS = ['#60D040','#9060e0','#fd7e14','#20c997','#e83e8c','#0dcaf0','#ffc107','#6610f2'];
@@ -28,6 +34,94 @@ export function renderizarDashboard() {
 
     renderDashboardNovedades();
     renderizarListaComprasDashboard();
+    renderizarPersonalDashboard();
+    renderizarPrevisionCompras();
+}
+
+function porcentaje(parte, total) {
+    return total > 0 ? (parte / total) * 100 : 0;
+}
+
+function filaMetrica(etiqueta, valor, porcentajeBarra, detalle) {
+    const ancho = Math.min(100, porcentajeBarra);
+    return `
+        <div class="dash-metrica" title="${etiqueta}: ${detalle}">
+            <div class="dash-metrica-texto"><span>${etiqueta}</span><strong>${valor}</strong></div>
+            <div class="dash-metrica-pista" role="img" aria-label="${etiqueta}: ${formatCantidad(ancho, 1)}%">
+                <div style="width:${ancho}%"></div>
+            </div>
+            <small>${detalle}</small>
+        </div>`;
+}
+
+// Libera los accesos rápidos a medida que llega cada colección.
+export function actualizarBloquesDashboard() {
+    const cargado = state.dataLoadedFlags;
+    if (cargado.pendingPayments) marcarBloqueListo('pagos');
+    if (cargado.inventario) marcarBloqueListo('comprar');
+    if (cargado.faltantes) marcarBloqueListo('faltantes');
+    if (document.querySelector('[data-esqueleto="prevision"].esqueleto')) renderizarPrevisionCompras();
+}
+
+export function renderizarPersonalDashboard() {
+    const cuerpo = document.getElementById('dashboard-personal-body');
+    const periodo = document.getElementById('dashboard-personal-periodo');
+    if (!cuerpo) return;
+
+    const nombreMes = new Date().toLocaleDateString('es-AR', { month: 'long' });
+    if (periodo) periodo.textContent = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1);
+
+    const r = resumenEquipoDelMes();
+    if (!r) {
+        cuerpo.innerHTML = '<div class="dash-vacio">Cargando…</div>';
+        return;
+    }
+    marcarBloqueListo('personal');
+    if (r.dias === 0) {
+        cuerpo.innerHTML = '<div class="dash-vacio">Sin registros este mes.</div>';
+        return;
+    }
+
+    const faltas = r.injustificadas + r.justificadas;
+    const laborables = r.trabajados + faltas;
+    const extras = porcentaje(r.horasExtras, r.horasNormales);
+    const tardes = porcentaje(r.tardes, r.trabajados);
+    const tolerancias = porcentaje(r.tolerancias, r.trabajados);
+
+    cuerpo.innerHTML = [
+        filaMetrica('Presentismo', r.presentismo === null ? '—' : `${formatCantidad(r.presentismo, 1)}%`, r.presentismo || 0, `${r.trabajados} de ${laborables} días`),
+        filaMetrica('En tolerancia', r.tolerancias, tolerancias, `${formatCantidad(tolerancias, 1)}% de las entradas`),
+        filaMetrica('Llegadas tarde', r.tardes, tardes, `Fuera de tolerancia · ${formatCantidad(tardes, 1)}% de las entradas`),
+        filaMetrica('Faltas', faltas, porcentaje(faltas, laborables), `${r.injustificadas} injustificadas · ${r.justificadas} justificadas`),
+        filaMetrica('Horas extras', `${formatCantidad(r.horasExtras, 1)} hs`, extras, `${formatCantidad(extras, 1)}% de las horas normales`)
+    ].join('');
+}
+
+async function renderizarPrevisionCompras() {
+    const cuerpo = document.getElementById('dashboard-prevision-body');
+    const pie = document.getElementById('dashboard-prevision-pie');
+    if (!cuerpo || !state.dataLoadedFlags.inventario || !state.dataLoadedFlags.unitsOfMeasure) return;
+
+    const render = ++ultimaPrevision;
+    try {
+        const { articulos, sinDatos } = await obtenerPrevisionCompras(DIAS_PREVISION);
+        if (render !== ultimaPrevision) return;
+
+        pie.textContent = sinDatos > 0 ? `${sinDatos} artículo(s) sin datos suficientes para estimar.` : '';
+        cuerpo.innerHTML = articulos.length === 0
+            ? '<div class="dash-vacio">Nada para comprar en los próximos 90 días.</div>'
+            : '<div class="dash-prevision-fila dash-prevision-encabezado"><span>Artículo</span><span>Stock</span><span>Duración</span><span>Comprar</span></div>' + articulos.map(a => `
+                <div class="dash-prevision-fila">
+                    <span class="dash-prevision-nombre" title="${escapeHtml(a.nombre)}">${escapeHtml(a.nombre)}</span>
+                    <span class="dash-prevision-stock">${formatCantidad(a.stock)}</span>
+                    <span class="dash-prevision-cuando${a.bajoMinimo ? ' bajo-minimo' : ''}"${a.bajoMinimo ? ' title="Ya está bajo el stock mínimo"' : ''}>${a.diasRestantes === 0 ? 'Queda menos de 1 día' : `Quedan ~${a.diasRestantes} días`}</span>
+                    <strong>${formatCantidad(a.cantidad)} ${escapeHtml(a.unidad)}</strong>
+                </div>`).join('');
+    } catch (e) {
+        console.error('Error calculando previsión de compras:', e);
+        if (render === ultimaPrevision) cuerpo.innerHTML = '<div class="dash-vacio">No se pudo calcular la previsión.</div>';
+    }
+    if (render === ultimaPrevision) marcarBloqueListo('prevision');
 }
 
 export function startDashboardClock() {

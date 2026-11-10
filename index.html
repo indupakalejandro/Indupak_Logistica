@@ -88,13 +88,12 @@
 
     <main id="panel-dashboard" class="container mt-4">
 
-        <!-- Fila principal: 3 botones izq | novedades der -->
         <div class="bento">
 
-            <!-- Columna izquierda: 3 botones de acceso rápido -->
-            <div class="bento-4">
+            <!-- Accesos rápidos -->
+            <div class="dash-area-accesos">
                 <div class="dash-btn-col">
-                    <div class="card dash-btn" onclick="mostrarPanel('pagos', event)">
+                    <div class="card dash-btn esqueleto" data-esqueleto="pagos" onclick="mostrarPanel('pagos', event)">
                         <div class="card-body">
                             <div class="dash-btn-left">
                                 <i class="bi bi-cash-coin dash-btn-icon"></i>
@@ -103,7 +102,7 @@
                             <div class="dash-btn-value" id="dashboard-pagos-pendientes">0</div>
                         </div>
                     </div>
-                    <div class="card dash-btn" onclick="switchInsumosTab('compras'); mostrarPanel('insumos', event)">
+                    <div class="card dash-btn esqueleto" data-esqueleto="comprar" onclick="switchInsumosTab('compras'); mostrarPanel('insumos', event)">
                         <div class="card-body">
                             <div class="dash-btn-left">
                                 <i class="bi bi-bag-check dash-btn-icon"></i>
@@ -112,7 +111,7 @@
                             <div class="dash-btn-value" id="dashboard-articulos-comprar">0</div>
                         </div>
                     </div>
-                    <div class="card dash-btn" onclick="mostrarPanel('faltantes', event)">
+                    <div class="card dash-btn esqueleto" data-esqueleto="faltantes" onclick="mostrarPanel('faltantes', event)">
                         <div class="card-body">
                             <div class="dash-btn-left">
                                 <i class="bi bi-exclamation-octagon dash-btn-icon"></i>
@@ -124,9 +123,9 @@
                 </div>
             </div>
 
-            <!-- Columna derecha: novedades del último control -->
-            <div class="bento-8">
-                <div class="novedades-panel">
+            <!-- Novedades del último control -->
+            <div class="dash-area-novedades">
+                <div class="novedades-panel esqueleto" data-esqueleto="novedades">
                     <div class="novedades-panel-header">
                         <i class="bi bi-exclamation-circle-fill" style="color:#ffc107;font-size:0.8rem"></i>
                         <span>Novedades del último control</span>
@@ -139,9 +138,20 @@
                 </div>
             </div>
 
+            <!-- Personal del mes -->
+            <div class="dash-area-personal">
+                <div class="card dash-panel dash-panel-enlace esqueleto" data-esqueleto="personal" role="link" tabindex="0" title="Ir a Control Horario" onclick="mostrarPanel('horarios', event)" onkeydown="if (event.key === 'Enter') mostrarPanel('horarios')">
+                    <div class="card-header py-2 px-3">
+                        <h6 class="mb-0 fw-bold"><i class="bi bi-people-fill me-2"></i>Personal</h6>
+                        <span class="small" id="dashboard-personal-periodo"></span>
+                    </div>
+                    <div class="card-body dash-personal-body" id="dashboard-personal-body"></div>
+                </div>
+            </div>
+
             <!-- Lista de Compras Compartida (accesible y sincronizada para todos los usuarios) -->
-            <div class="bento-12">
-                <div class="card lista-compras-card">
+            <div class="dash-area-compras">
+                <div class="card lista-compras-card dash-panel esqueleto" data-esqueleto="compras">
                     <div class="card-header d-flex justify-content-between align-items-center py-2 px-3">
                         <div class="d-flex align-items-center gap-2">
                             <i class="bi bi-cart3 text-success fs-5"></i>
@@ -172,6 +182,18 @@
                             <!-- Renderizado en tiempo real -->
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Previsión de compras -->
+            <div class="dash-area-prevision">
+                <div class="card dash-panel esqueleto" data-esqueleto="prevision">
+                    <div class="card-header py-2 px-3">
+                        <h6 class="mb-0 fw-bold"><i class="bi bi-calendar-range me-2"></i>Próximas compras</h6>
+                        <span class="small">90 días</span>
+                    </div>
+                    <div class="card-body dash-prevision-body" id="dashboard-prevision-body"></div>
+                    <div class="card-footer text-muted small py-2 px-3" id="dashboard-prevision-pie"></div>
                 </div>
             </div>
         </div>
@@ -1076,7 +1098,7 @@
         </div>
 
         <div class="row" id="config-seccion-contactos" style="display: none;">
-                <div class="col-md-6 mb-4">
+                <div class="col-md-6 col-xl-4 mb-4">
                     <div class="card">
                         <div class="card-header">
                             <h5 class="card-title mb-0">Roles de contacto</h5>
@@ -1090,7 +1112,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-md-6 mb-4">
+                <div class="col-md-6 col-xl-4 mb-4">
                     <div class="card">
                         <div class="card-header">
                             <h5 class="card-title mb-0">Localidades</h5>
@@ -1104,7 +1126,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-md-6 mb-4">
+                <div class="col-md-6 col-xl-4 mb-4">
                     <div class="card">
                         <div class="card-header">
                             <h5 class="card-title mb-0">Proveedores de plástico</h5>
@@ -1173,7 +1195,7 @@
                     </div>
                 </div>
                 <div class="card-footer d-flex justify-content-between align-items-center gap-2 flex-wrap">
-                    <small class="cfg-ayuda">Se aplica a las próximas entradas. Los días ya cargados no cambian.</small>
+                    <small class="cfg-ayuda">Vale para las próximas entradas. Si subís la tolerancia, las llegadas tarde ya cargadas dentro de ese margen pasan a En tolerancia.</small>
                     <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-floppy me-1"></i>Guardar</button>
                 </div>
             </form>

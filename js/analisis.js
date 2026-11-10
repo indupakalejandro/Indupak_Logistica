@@ -15,6 +15,7 @@ const MIN_DIAS_HISTORIA = 7;
 const VENTANA_CORRECCION_MS = 15 * 60 * 1000;
 
 let ultimoRender = 0;
+let historialEnCurso = null;
 
 function escapeHtml(str) {
     if (str === null || str === undefined || str === '') return '';
@@ -29,13 +30,20 @@ function toDate(val) {
     return isNaN(fecha.getTime()) ? null : fecha;
 }
 
+// Varias vistas pueden pedir el historial a la vez: comparten una sola lectura.
 async function obtenerHistorial() {
     const cache = state._historialCache;
     if (cache && Date.now() - cache.ts < CACHE_TTL) return cache.data;
-    const snap = await getDocs(getUserCollection('historial'));
-    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    state._historialCache = { data, ts: Date.now() };
-    return data;
+    if (historialEnCurso) return historialEnCurso;
+
+    historialEnCurso = getDocs(getUserCollection('historial'))
+        .then(snap => {
+            const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            state._historialCache = { data, ts: Date.now() };
+            return data;
+        })
+        .finally(() => { historialEnCurso = null; });
+    return historialEnCurso;
 }
 
 // La variación real de stock manda sobre la cantidad escrita: si se retiró más de lo que había, el stock solo bajó hasta 0.
@@ -157,6 +165,42 @@ function ordenUrgencia(a, b) {
     return grupo(a) - grupo(b) || (a.diasRestantes ?? 0) - (b.diasRestantes ?? 0);
 }
 
+function metricasDeInventario(historial) {
+    const porArticulo = new Map();
+    historial.forEach(m => {
+        if (!porArticulo.has(m.idArticulo)) porArticulo.set(m.idArticulo, []);
+        porArticulo.get(m.idArticulo).push(m);
+    });
+
+    return state.inventarioData.map(item => {
+        const stock = parseCantidad(item.cantidadActual);
+        const stockMinimo = parseCantidad(item.stockMinimo);
+        return { item, stock, stockMinimo, ...calcularMetricas(porArticulo.get(item.id) || [], stock, stockMinimo) };
+    });
+}
+
+const nombreUnidad = item => state.unitsOfMeasureData.find(u => u.id === item.unidadMedida)?.name || '';
+
+// Artículos que llegan a su mínimo (o se agotan, si no tienen mínimo) dentro del plazo, con lo necesario para cubrirlo.
+export async function obtenerPrevisionCompras(dias) {
+    const metricas = metricasDeInventario(await obtenerHistorial());
+    const articulos = metricas
+        .filter(r => r.consumoDiario !== null && r.stock > 0)
+        .map(r => ({
+            nombre: r.item.nombre,
+            unidad: nombreUnidad(r.item),
+            diasRestantes: r.diasRestantes,
+            stock: r.stock,
+            bajoMinimo: r.diasAlMinimo === 0,
+            diasHastaCompra: r.diasAlMinimo ?? r.diasRestantes,
+            cantidad: Math.ceil(r.consumoDiario * dias + r.stockMinimo - r.stock)
+        }))
+        .filter(r => r.diasHastaCompra <= dias && r.cantidad > 0)
+        .sort((a, b) => a.diasRestantes - b.diasRestantes);
+
+    return { articulos, sinDatos: metricas.filter(r => r.consumoDiario === null).length };
+}
+
 function resumenPie(resultados) {
     const conProyeccion = resultados.filter(r => r.diasRestantes !== null);
     const contar = condicion => resultados.filter(condicion).length;
@@ -191,20 +235,9 @@ export async function renderizarTablaAnalisis() {
         const historial = await obtenerHistorial();
         if (render !== ultimoRender) return;
 
-        const porArticulo = new Map();
-        historial.forEach(m => {
-            if (!porArticulo.has(m.idArticulo)) porArticulo.set(m.idArticulo, []);
-            porArticulo.get(m.idArticulo).push(m);
-        });
-
         const termino = (state.elements.buscador?.value || '').toLowerCase();
-        const resultados = state.inventarioData
-            .filter(item => !termino || `${item.nombre || ''} ${item.descripcion || ''}`.toLowerCase().includes(termino))
-            .map(item => {
-                const stock = parseCantidad(item.cantidadActual);
-                const stockMinimo = parseCantidad(item.stockMinimo);
-                return { item, stock, stockMinimo, ...calcularMetricas(porArticulo.get(item.id) || [], stock, stockMinimo) };
-            })
+        const resultados = metricasDeInventario(historial)
+            .filter(({ item }) => !termino || `${item.nombre || ''} ${item.descripcion || ''}`.toLowerCase().includes(termino))
             .sort(ordenUrgencia);
 
         if (resultados.length === 0) {
@@ -214,7 +247,7 @@ export async function renderizarTablaAnalisis() {
         }
 
         tbody.innerHTML = resultados.map(r => {
-            const unidad = escapeHtml(state.unitsOfMeasureData.find(u => u.id === r.item.unidadMedida)?.name || '');
+            const unidad = escapeHtml(nombreUnidad(r.item));
             return `<tr>
                 <td><strong>${escapeHtml(r.item.nombre)}</strong><br><small class="text-muted">${escapeHtml(r.item.descripcion)}</small></td>
                 <td class="text-end text-nowrap">${textoConsumo(r, unidad)}</td>

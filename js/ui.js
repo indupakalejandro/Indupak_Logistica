@@ -236,6 +236,15 @@ export function cacheDOMElements() {
 const DURACION_SALUDO_MS = 1800;
 const DURACION_SALIDA_MENSAJE_MS = 900;
 
+/** Saca del esqueleto un bloque del dashboard cuando ya tiene sus datos. */
+export function marcarBloqueListo(bloque) {
+    const el = document.querySelector(`[data-esqueleto="${bloque}"].esqueleto`);
+    if (!el) return;
+    el.classList.remove('esqueleto');
+    el.classList.add('esqueleto-revelado');
+    panelHandlers['comprobarInicio']?.();
+}
+
 function cambiarMensajeInicio(texto) {
     const el = state.elements.inicioMensaje;
     if (!el) return;

@@ -2,6 +2,8 @@ import { state } from './state.js';
 import { getUserCollection, doc, addDoc, updateDoc, deleteDoc } from './firebase.js';
 import { renderizarConfigHorario } from './horarios.js';
 
+const ordenarPorNombre = lista => [...lista].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'es'));
+
 window.switchConfiguracionTab = function(tab) {
     ['insumos', 'contactos', 'horario', 'sistema'].forEach(nombre => {
         document.getElementById(`tab-btn-config-${nombre}`).classList.toggle('active', nombre === tab);
@@ -21,7 +23,7 @@ export function renderizarListaCategorias() {
         list.innerHTML = '<li class="list-group-item text-muted text-center">No hay categorías registradas.</li>';
         return;
     }
-    state.categoriesData.forEach(cat => {
+    ordenarPorNombre(state.categoriesData).forEach(cat => {
         list.innerHTML += `
             <li class="list-group-item config-list-item">
                 <span>${cat.name}</span>
@@ -65,7 +67,7 @@ export function renderizarListaUnidadesMedida() {
         list.innerHTML = '<li class="list-group-item text-muted text-center">No hay unidades de medida registradas.</li>';
         return;
     }
-    state.unitsOfMeasureData.forEach(unit => {
+    ordenarPorNombre(state.unitsOfMeasureData).forEach(unit => {
         list.innerHTML += `
             <li class="list-group-item config-list-item">
                 <span>${unit.name}</span>
@@ -109,7 +111,7 @@ export function renderizarListaRoles() {
         list.innerHTML = '<li class="list-group-item text-muted text-center">No hay roles registrados.</li>';
         return;
     }
-    state.rolesData.forEach(rol => {
+    ordenarPorNombre(state.rolesData).forEach(rol => {
         list.innerHTML += `
             <li class="list-group-item config-list-item">
                 <span>${rol.name}</span>
@@ -153,7 +155,7 @@ export function renderizarListaLocalidades() {
         list.innerHTML = '<li class="list-group-item text-muted text-center">No hay localidades registradas.</li>';
         return;
     }
-    state.localidadesData.forEach(loc => {
+    ordenarPorNombre(state.localidadesData).forEach(loc => {
         list.innerHTML += `
             <li class="list-group-item config-list-item">
                 <span>${loc.name}</span>
@@ -197,7 +199,7 @@ export function renderizarListaProveedoresPlastico() {
         list.innerHTML = '<li class="list-group-item text-muted text-center">No hay proveedores de plástico registrados.</li>';
         return;
     }
-    state.plasticSuppliersData.forEach(prov => {
+    ordenarPorNombre(state.plasticSuppliersData).forEach(prov => {
         list.innerHTML += `
             <li class="list-group-item config-list-item">
                 <span>${prov.name}</span>

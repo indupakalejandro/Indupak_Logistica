@@ -1,7 +1,7 @@
 import { initFirebase, getUserCollection, onSnapshot } from './firebase.js';
-import { state, totalCollectionsToLoad } from './state.js';
-import { cacheDOMElements, mostrarEsqueletoInicio, finalizarEsqueletoInicio, panelHandlers, setupUIListeners } from './ui.js';
-import { renderizarDashboard, startDashboardClock, renderMonthlyKilosChart, renderizarListaComprasDashboard } from './dashboard.js';
+import { state } from './state.js';
+import { cacheDOMElements, mostrarEsqueletoInicio, finalizarEsqueletoInicio, marcarBloqueListo, panelHandlers, setupUIListeners } from './ui.js';
+import { renderizarDashboard, startDashboardClock, renderMonthlyKilosChart, renderizarListaComprasDashboard, renderizarPersonalDashboard, actualizarBloquesDashboard } from './dashboard.js';
 import { renderizarTablaInventario, verificarStockBajo, actualizarDropdownProveedores, actualizarDropdownCategorias, actualizarDropdownUnidadesMedida } from './inventario.js';
 import { renderizarPanelProveedores, actualizarDropdownRoles, setupProviderCardListeners } from './proveedores.js';
 import { renderizarPanelComisionistas, renderLocalidadesCheckboxes } from './comisionistas.js';
@@ -36,6 +36,7 @@ const APP_IMPROVEMENTS = `
 
 // --- Register panel handlers (avoids circular imports) ---
 panelHandlers['dashboard'] = renderizarDashboard;
+panelHandlers['dashboardPersonal'] = renderizarPersonalDashboard;
 panelHandlers['insumos'] = function() {
     if (state.activeInsumosTab === 'inventario') {
         renderizarTablaInventario();
@@ -72,23 +73,33 @@ panelHandlers['renderPagosKilosChart'] = function() {
     if (chartEl) renderMonthlyKilosChart(chartEl, legendEl);
 };
 
-/**
- * Checks if all initial data collections have been loaded.
- * If so, triggers the ready state on the loading screen.
- */
-function checkAllDataLoaded() {
-    state.loadedCollectionsCount = 0;
-    for (const key in state.dataLoadedFlags) {
-        if (state.dataLoadedFlags[key]) {
-            state.loadedCollectionsCount++;
+// Si un bloque tarda demasiado una vez llegaron los datos principales, se libera igual para no trabar la app.
+const ESPERA_MAXIMA_BLOQUES_MS = 8000;
+let inicioFinalizado = false;
+let esperaBloques = null;
+
+function comprobarInicioCompleto() {
+    if (inicioFinalizado || !Object.values(state.dataLoadedFlags).every(Boolean)) return;
+
+    const pendientes = document.querySelectorAll('[data-esqueleto].esqueleto');
+    if (pendientes.length > 0) {
+        if (!esperaBloques) {
+            esperaBloques = setTimeout(() => {
+                document.querySelectorAll('[data-esqueleto].esqueleto').forEach(el => marcarBloqueListo(el.dataset.esqueleto));
+            }, ESPERA_MAXIMA_BLOQUES_MS);
         }
+        return;
     }
-    if (state.loadedCollectionsCount === totalCollectionsToLoad) {
-        console.log("All initial data collections loaded.");
-        finalizarEsqueletoInicio();
-    } else {
-        console.log(`Loaded ${state.loadedCollectionsCount} of ${totalCollectionsToLoad} collections.`);
-    }
+
+    inicioFinalizado = true;
+    clearTimeout(esperaBloques);
+    finalizarEsqueletoInicio();
+}
+panelHandlers['comprobarInicio'] = comprobarInicioCompleto;
+
+function checkAllDataLoaded() {
+    actualizarBloquesDashboard();
+    comprobarInicioCompleto();
 }
 
 /**
@@ -352,6 +363,10 @@ function setupRealtimeListeners() {
         if (state.currentActivePanel === 'dashboard') {
             renderizarDashboard();
         }
+        marcarBloqueListo('novedades');
+    }, (error) => {
+        console.error("Error fetching controlHistorial:", error);
+        marcarBloqueListo('novedades');
     });
 
     // Lista de Compras Compartida Listener (not part of loading progress)
@@ -360,8 +375,10 @@ function setupRealtimeListeners() {
         if (state.currentActivePanel === 'dashboard') {
             renderizarListaComprasDashboard();
         }
+        marcarBloqueListo('compras');
     }, (error) => {
         console.error("Error fetching dashboardListaCompras:", error);
+        marcarBloqueListo('compras');
     });
 }
 

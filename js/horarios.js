@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { getUserCollection, doc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, writeBatch } from './firebase.js';
-import { showNotification, showAlert, showConfirm, parseCantidad, formatCantidad } from './ui.js';
+import { showNotification, showAlert, showConfirm, parseCantidad, formatCantidad, panelHandlers, marcarBloqueListo } from './ui.js';
 
 // ---- Reglas del módulo ----
 const CONFIG_HORARIO_POR_DEFECTO = {
@@ -46,6 +46,7 @@ const FILTROS_REPORTE = {
 const operariosRegistrando = new Set();
 let filtroReporte = '';
 let configHorario = CONFIG_HORARIO_POR_DEFECTO;
+let asistenciaGuardada = [];
 let configCargada = false;
 let personalCargado = false;
 let asistenciaCargada = false;
@@ -175,23 +176,43 @@ function ordenarPorNombre(lista) {
     return [...lista].sort((a, b) => String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'));
 }
 
+// Una llegada dentro de la tolerancia nunca es tarde, aunque se haya registrado antes de ampliarla.
+function aplicarToleranciaVigente() {
+    const { toleranciaMin, jornadaHs } = configHorario;
+    state.asistenciaData = asistenciaGuardada.map(reg => {
+        const minutos = parseCantidad(reg.minutosTarde);
+        if (reg.estado !== 'tarde' || minutos <= 0 || minutos > toleranciaMin) return reg;
+        return {
+            ...reg,
+            estado: 'tolerancia',
+            minutosTarde: 0,
+            minutosTolerancia: minutos,
+            horasTrabajadas: Number(Math.min(jornadaHs, parseCantidad(reg.horasTrabajadas) + minutos / 60).toFixed(2))
+        };
+    });
+}
+
 // ---- Inicialización y Listeners Firestore ----
 export function setupHorariosListeners() {
     onSnapshot(getUserCollection('personal'), snapshot => {
         state.operariosData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         personalCargado = true;
         if (state.currentActivePanel === 'horarios') renderizarHorariosPanel();
+        if (state.currentActivePanel === 'dashboard') panelHandlers['dashboardPersonal']?.();
     }, error => {
         console.error('Error fetching personal:', error);
         showAlert('No se pudo cargar el personal. Recargá la página.', 'danger');
     });
 
     onSnapshot(getUserCollection('asistencia'), snapshot => {
-        state.asistenciaData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        asistenciaGuardada = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        aplicarToleranciaVigente();
         asistenciaCargada = true;
         if (state.currentActivePanel === 'horarios') renderizarHorariosPanel();
+        if (state.currentActivePanel === 'dashboard') panelHandlers['dashboardPersonal']?.();
     }, error => {
         console.error('Error fetching asistencia:', error);
+        marcarBloqueListo('personal');
         showAlert('No se pudo cargar la asistencia. Recargá la página.', 'danger');
     });
 
@@ -199,8 +220,10 @@ export function setupHorariosListeners() {
         const guardada = snapshot.docs.find(d => d.id === 'controlHorario')?.data();
         configHorario = { ...CONFIG_HORARIO_POR_DEFECTO, ...guardada };
         configCargada = true;
+        aplicarToleranciaVigente();
         renderizarConfigHorario();
         if (state.currentActivePanel === 'horarios') renderizarHorariosPanel();
+        if (state.currentActivePanel === 'dashboard') panelHandlers['dashboardPersonal']?.();
     }, error => {
         console.error('Error fetching configuracion:', error);
         configCargada = true;
@@ -578,6 +601,14 @@ window.horariosFiltrarReporte = function(filtro) {
 
 function registrosDelOperario(operarioId, desde, hasta) {
     return state.asistenciaData.filter(a => a.operarioId === operarioId && (!desde || a.fecha >= desde) && (!hasta || a.fecha <= hasta));
+}
+
+// Totales del equipo en el mes en curso; null mientras la asistencia no llegó de la base.
+export function resumenEquipoDelMes() {
+    if (!asistenciaCargada) return null;
+    const mes = fechaISO(new Date()).slice(0, 7);
+    const registros = state.asistenciaData.filter(a => String(a.fecha).startsWith(mes));
+    return { ...calcularResumen(registros), dias: registros.length };
 }
 
 function calcularResumen(registros) {

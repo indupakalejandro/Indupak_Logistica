@@ -9,7 +9,6 @@ export const state = {
         pendingPayments: false, paymentHistory: false,
         monthlyKiloSummaries: false, faltantes: false
     },
-    loadedCollectionsCount: 0,
     // Real-time data arrays
     inventarioData: [], proveedoresData: [], contactosData: [],
     categoriesData: [], unitsOfMeasureData: [], rolesData: [],
@@ -54,5 +53,3 @@ export const state = {
     horariosReporteDesde: '',
     horariosReporteHasta: ''
 };
-
-export const totalCollectionsToLoad = Object.keys(state.dataLoadedFlags).length;

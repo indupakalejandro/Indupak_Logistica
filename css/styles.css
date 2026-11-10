@@ -173,12 +173,58 @@
             margin-bottom: var(--bento-gap);
         }
         .bento > * { min-width: 0; }
-        .bento-4 { grid-column: span 4; }
-        .bento-8 { grid-column: span 8; }
-        .bento-12 { grid-column: span 12; }
+        .dash-area-accesos { grid-column: span 3; }
+        .dash-area-novedades { grid-column: span 5; }
+        .dash-area-personal { grid-column: span 4; }
+        .dash-area-compras { grid-column: span 7; }
+        .dash-area-prevision { grid-column: span 5; }
         .bento .card { margin-bottom: 0; }
+        @media (max-width: 1199.98px) {
+            .dash-area-accesos { grid-column: 1 / -1; }
+            .dash-area-accesos .dash-btn-col { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .dash-area-novedades, .dash-area-personal { grid-column: span 6; }
+            .dash-area-compras, .dash-area-prevision { grid-column: 1 / -1; }
+        }
         @media (max-width: 767.98px) {
             .bento > * { grid-column: 1 / -1; }
+            .dash-area-accesos .dash-btn-col { grid-template-columns: minmax(0, 1fr); }
+        }
+
+        /* Paneles del dashboard */
+        .dash-panel { height: 100%; display: flex; flex-direction: column; }
+        .dash-panel > .card-body { flex: 1; min-height: 0; }
+        .dash-panel-enlace { cursor: pointer; transition: transform 0.22s cubic-bezier(.34,1.56,.64,1), box-shadow 0.22s ease; }
+        .dash-panel-enlace:hover { transform: translateY(-2px); box-shadow: 0 10px 28px var(--shadow-color); }
+        .dash-panel-enlace:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
+        .dash-vacio { padding: 1.5rem 0; text-align: center; font-size: 0.85rem; color: color-mix(in srgb, var(--text-color) 72%, transparent); }
+        .dash-personal-body { display: flex; flex-direction: column; justify-content: space-between; gap: 0.6rem; padding: 0.75rem 1rem; }
+        .dash-metrica-texto { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; font-size: 0.8rem; }
+        .dash-metrica-texto strong { font-size: 1rem; font-variant-numeric: tabular-nums; }
+        .dash-metrica-pista { height: 8px; margin: 0.15rem 0; border-radius: 4px; overflow: hidden; background: color-mix(in srgb, var(--text-color) 14%, transparent); }
+        .dash-metrica-pista > div { height: 100%; min-width: 2px; border-radius: 4px; background: var(--accent-color); }
+        .dash-metrica small { display: block; font-size: 0.7rem; color: color-mix(in srgb, var(--text-color) 72%, transparent); }
+        .dash-prevision-body { max-height: 330px; overflow-y: auto; padding: 0.35rem 1rem; }
+        .dash-prevision-fila {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 3.5rem 7.5rem 5.5rem;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.45rem 0;
+            font-size: 0.85rem;
+            border-bottom: 1px solid var(--input-border);
+        }
+        .dash-prevision-fila:last-child { border-bottom: 0; }
+        .dash-prevision-nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .dash-prevision-cuando { font-size: 0.75rem; color: color-mix(in srgb, var(--text-color) 72%, transparent); font-variant-numeric: tabular-nums; }
+        .dash-prevision-cuando.bajo-minimo { color: #ffc107; font-weight: 700; }
+        body.light-mode .dash-prevision-cuando.bajo-minimo { color: #a16207; }
+        .dash-prevision-fila strong { text-align: right; font-variant-numeric: tabular-nums; }
+        .dash-prevision-stock { text-align: right; font-variant-numeric: tabular-nums; }
+        .dash-prevision-encabezado { padding: 0.3rem 0; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: color-mix(in srgb, var(--text-color) 72%, transparent); }
+        .dash-prevision-encabezado > span:nth-child(2),
+        .dash-prevision-encabezado > span:nth-child(4) { text-align: right; }
+        @media (max-width: 575.98px) {
+            .dash-prevision-fila { grid-template-columns: minmax(0, 1fr) 2.5rem 6.5rem 4.5rem; gap: 0.5rem; }
         }
 
         main[id^="panel-"] > .row,
@@ -200,6 +246,13 @@
         main[id^="panel-"] > .row > [class*="col-"] > .card,
         main[id^="panel-"] > .row > [class*="col-"] > .chart-container { margin-bottom: 0; }
         main[id^="panel-"] .card.mb-4 { margin-bottom: var(--bento-gap) !important; }
+
+        /* Barras de desplazamiento finas y del color del tema, en toda la app */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: color-mix(in srgb, var(--text-color) 32%, transparent) transparent;
+        }
+        html:has(body.light-mode) { scrollbar-color: rgba(30, 20, 50, 0.3) transparent; }
 
         /* Navbar personalizada flotante y compacta */
         .navbar {
@@ -687,6 +740,28 @@
         .list-group-item:last-child {
             border-bottom: none !important; /* Remove bottom border for last item */
         }
+
+        /* Listas de Configuración: compactas, en columnas y con su propio desplazamiento */
+        [id^="config-seccion-"] .list-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+            align-content: start;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        [id^="config-seccion-"] .list-group-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.4rem;
+            min-width: 0;
+            padding: 0.3rem 0.6rem;
+            font-size: 0.85rem;
+            border-width: 0 0 1px 0;
+        }
+        [id^="config-seccion-"] .list-group-item > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        [id^="config-seccion-"] .list-group-item > div { flex: none; }
+        [id^="config-seccion-"] .list-group-item.text-center { grid-column: 1 / -1; justify-content: center; }
 
         /* End of new config table styles */
 
@@ -1200,9 +1275,6 @@
             flex: 1;
             padding: 0.5rem 1rem;
         }
-        .novedades-panel-body::-webkit-scrollbar { width: 4px; }
-        .novedades-panel-body::-webkit-scrollbar-track { background: transparent; }
-        .novedades-panel-body::-webkit-scrollbar-thumb { background: var(--input-border); border-radius: 2px; }
         .novedades-row {
             padding: 0.45rem 0;
             border-bottom: 1px solid var(--input-border);
@@ -1332,10 +1404,10 @@
             to   { opacity: 0; transform: translateY(-18px) scale(1.03); filter: blur(10px); }
         }
 
-        body.app-cargando { --skel-base: rgba(255, 255, 255, 0.1); --skel-brillo: rgba(255, 255, 255, 0.42); }
-        body.app-cargando.light-mode { --skel-base: rgba(0, 0, 0, 0.08); --skel-brillo: rgba(255, 255, 255, 0.8); }
+        :root { --skel-base: rgba(255, 255, 255, 0.1); --skel-brillo: rgba(255, 255, 255, 0.42); }
+        body.light-mode { --skel-base: rgba(0, 0, 0, 0.08); --skel-brillo: rgba(255, 255, 255, 0.8); }
         body.app-cargando .corner-btn,
-        body.app-cargando #panel-dashboard > .row { pointer-events: none; }
+        .esqueleto { pointer-events: none; }
 
         /* La barra espera fuera de pantalla y entra cuando termina la carga. */
         body.app-cargando .navbar,
@@ -1353,17 +1425,21 @@
             to   { opacity: 1; translate: 0 0; }
         }
 
-        body.app-cargando .dash-btn-icon,
-        body.app-cargando .dash-btn-label,
-        body.app-cargando .dash-btn-value,
-        body.app-cargando .novedades-panel-header > span:not(.novedades-badge):not(.ms-auto),
-        body.app-cargando .lista-compras-card .card-header h6,
-        body.app-cargando .lista-compras-card .card-header .badge,
-        body.app-cargando #dashboard-compras-limpiar,
-        body.app-cargando #dashboard-compras-form input,
-        body.app-cargando #dashboard-compras-form button,
-        body.app-cargando .novedades-panel-body::before,
-        body.app-cargando #dashboard-compras-lista::before {
+        /* Cada bloque del dashboard sale del esqueleto cuando llegan sus propios datos. */
+        .esqueleto .dash-btn-icon,
+        .esqueleto .dash-btn-label,
+        .esqueleto .dash-btn-value,
+        .esqueleto .novedades-panel-header > span:not(.novedades-badge):not(.ms-auto),
+        .esqueleto .card-header h6,
+        .esqueleto .card-header > span,
+        .esqueleto .card-header .badge,
+        .esqueleto #dashboard-compras-limpiar,
+        .esqueleto #dashboard-compras-form input,
+        .esqueleto #dashboard-compras-form button,
+        .esqueleto .novedades-panel-body::before,
+        .esqueleto .dash-personal-body::before,
+        .esqueleto .dash-prevision-body::before,
+        .esqueleto #dashboard-compras-lista::before {
             color: transparent !important;
             border-color: transparent !important;
             box-shadow: none !important;
@@ -1374,20 +1450,26 @@
             border-radius: var(--radius-g2-xs);
             animation: skel-brillo 1.6s linear infinite;
         }
-        body.app-cargando #dashboard-compras-form input::placeholder,
-        body.app-cargando #dashboard-compras-form button i,
-        body.app-cargando #dashboard-compras-limpiar i,
-        body.app-cargando .lista-compras-card .card-header > div > i { color: transparent !important; }
-        body.app-cargando .novedades-panel-body > *,
-        body.app-cargando #dashboard-compras-lista > * { display: none; }
-        body.app-cargando .novedades-panel-body::before,
-        body.app-cargando #dashboard-compras-lista::before {
+        .esqueleto #dashboard-compras-form input::placeholder,
+        .esqueleto #dashboard-compras-form button i,
+        .esqueleto #dashboard-compras-limpiar i,
+        .esqueleto .card-header i { color: transparent !important; }
+        .esqueleto .novedades-panel-body > *,
+        .esqueleto .dash-personal-body > *,
+        .esqueleto .dash-prevision-body > *,
+        .esqueleto #dashboard-compras-lista > * { display: none; }
+        .esqueleto .novedades-panel-body::before,
+        .esqueleto .dash-personal-body::before,
+        .esqueleto .dash-prevision-body::before,
+        .esqueleto #dashboard-compras-lista::before {
             content: '';
             display: block;
             height: 132px;
             -webkit-mask: repeating-linear-gradient(to bottom, #000 0 28px, transparent 28px 44px);
             mask: repeating-linear-gradient(to bottom, #000 0 28px, transparent 28px 44px);
         }
+        .esqueleto-revelado > * { animation: bloqueAparece 0.45s ease both; }
+        @keyframes bloqueAparece { from { opacity: 0; } }
         @keyframes skel-brillo { to { background-position: -200% 0; } }
         @keyframes skel-pulso { 50% { opacity: 0.55; } }
         @keyframes barraAparece { from { opacity: 0; } }
@@ -1396,17 +1478,20 @@
             body.app-cargando #nav-time-widget { translate: none; }
             body:not(.app-cargando) .navbar,
             body:not(.app-cargando) #nav-time-widget { animation-name: barraAparece; }
-            body.app-cargando .dash-btn-icon,
-            body.app-cargando .dash-btn-label,
-            body.app-cargando .dash-btn-value,
-            body.app-cargando .novedades-panel-header > span:not(.novedades-badge):not(.ms-auto),
-            body.app-cargando .lista-compras-card .card-header h6,
-            body.app-cargando .lista-compras-card .card-header .badge,
-            body.app-cargando #dashboard-compras-limpiar,
-            body.app-cargando #dashboard-compras-form input,
-            body.app-cargando #dashboard-compras-form button,
-            body.app-cargando .novedades-panel-body::before,
-            body.app-cargando #dashboard-compras-lista::before { animation-name: skel-pulso; }
+            .esqueleto .dash-btn-icon,
+            .esqueleto .dash-btn-label,
+            .esqueleto .dash-btn-value,
+            .esqueleto .novedades-panel-header > span:not(.novedades-badge):not(.ms-auto),
+            .esqueleto .card-header h6,
+            .esqueleto .card-header > span,
+            .esqueleto .card-header .badge,
+            .esqueleto #dashboard-compras-limpiar,
+            .esqueleto #dashboard-compras-form input,
+            .esqueleto #dashboard-compras-form button,
+            .esqueleto .novedades-panel-body::before,
+            .esqueleto .dash-personal-body::before,
+            .esqueleto .dash-prevision-body::before,
+            .esqueleto #dashboard-compras-lista::before { animation-name: skel-pulso; }
         }
 
         /* New style for round button with icon */

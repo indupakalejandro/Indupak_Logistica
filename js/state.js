@@ -21,6 +21,7 @@ export const state = {
     currentActivePanel: 'dashboard',
     activeContactosTab: 'proveedores',
     activeInsumosTab: 'inventario',
+    activeFaltantesTab: 'actuales',
     _historialCache: null,
     elements: {},
     // Mensajes de inicio

@@ -104,6 +104,160 @@ function marcarSeccionActiva(panelId) {
         else boton.removeAttribute('aria-current');
     });
     document.querySelector('.dock-mas')?.classList.toggle('active', SECCIONES_SECUNDARIAS.includes(panelId));
+    iniciarBurbujaDock();
+    moverBurbujaDock();
+    iniciarRepliegueBarra();
+    programarRepliegueBarra();
+}
+
+// ---- Barra que se repliega: a los 2 s en la misma sección quedan solo la sección actual y la lupa ----
+const REPLIEGUE_MS = 2000;
+let temporizadorRepliegue = 0;
+let repliegueIniciado = false;
+
+// Solo cuenta como "en uso" el mouse encima de las secciones o el teclado (foco visible) sobre ellas.
+// El foco que deja un clic con el mouse no cuenta: antes eso dejaba la barra abierta para siempre.
+// La lupa es independiente: usarla abre solo el buscador, no las secciones.
+function barraEnUso(barra) {
+    const dock = barra.querySelector('.dock');
+    return !!dock && (dock.matches(':hover') || !!dock.querySelector(':focus-visible'));
+}
+
+function cambiarRepliegue(barra, replegar) {
+    if (barra.classList.contains('replegada') === replegar) return;
+    barra.classList.toggle('replegada', replegar);
+    seguirBurbujaDurante(700);
+}
+
+function programarRepliegueBarra() {
+    const barra = document.querySelector('.barra-app');
+    if (!barra) return;
+    clearTimeout(temporizadorRepliegue);
+    cambiarRepliegue(barra, false);
+    const intentar = () => {
+        // Si en ese momento se está usando, vuelve a probar en un rato en vez de quedarse abierta.
+        if (barraEnUso(barra)) temporizadorRepliegue = setTimeout(intentar, 600);
+        else cambiarRepliegue(barra, true);
+    };
+    temporizadorRepliegue = setTimeout(intentar, REPLIEGUE_MS);
+}
+
+function iniciarRepliegueBarra() {
+    if (repliegueIniciado) return;
+    const barra = document.querySelector('.barra-app');
+    const dock = barra?.querySelector('.dock');
+    if (!barra || !dock) return;
+    repliegueIniciado = true;
+    // Solo pasar por las secciones despliega la barra; la lupa queda afuera.
+    dock.addEventListener('pointerenter', evento => {
+        if (evento.pointerType === 'touch') return;
+        clearTimeout(temporizadorRepliegue);
+        cambiarRepliegue(barra, false);
+    });
+    dock.addEventListener('pointerleave', evento => {
+        if (evento.pointerType !== 'touch') programarRepliegueBarra();
+    });
+    dock.addEventListener('focusin', () => {
+        if (dock.querySelector(':focus-visible')) {
+            clearTimeout(temporizadorRepliegue);
+            cambiarRepliegue(barra, false);
+        }
+    });
+    dock.addEventListener('focusout', () => setTimeout(() => {
+        if (!dock.matches(':focus-within') && barra.classList.contains('replegada') === false) programarRepliegueBarra();
+    }));
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) programarRepliegueBarra();
+    });
+}
+
+// Mientras la barra se abre o se cierra, la burbuja se pega al botón cuadro a cuadro (sin su propia transición),
+// así acompaña el movimiento en vez de perseguirlo con saltos.
+let burbujaSiguiendoHasta = 0;
+function seguirBurbujaDurante(ms) {
+    const burbuja = document.querySelector('.dock-burbuja');
+    if (!burbuja) return;
+    const yaSiguiendo = performance.now() < burbujaSiguiendoHasta;
+    burbujaSiguiendoHasta = performance.now() + ms;
+    if (yaSiguiendo) return;
+    burbuja.classList.add('siguiendo');
+    const paso = () => {
+        moverBurbujaDock();
+        if (performance.now() < burbujaSiguiendoHasta) requestAnimationFrame(paso);
+        else burbuja.classList.remove('siguiendo');
+    };
+    requestAnimationFrame(paso);
+}
+
+// ---- Vidrio líquido: el brillo sigue al puntero sobre la barra ----
+const SUPERFICIES_CON_BRILLO = '.dock, .dock-buscador';
+document.addEventListener('pointermove', evento => {
+    if (evento.pointerType === 'touch') return;
+    const superficie = evento.target.closest?.(SUPERFICIES_CON_BRILLO);
+    if (!superficie) return;
+    const caja = superficie.getBoundingClientRect();
+    superficie.style.setProperty('--mx', `${evento.clientX - caja.left}px`);
+    superficie.style.setProperty('--my', `${evento.clientY - caja.top}px`);
+}, { passive: true });
+
+// La refracción con filtro SVG solo funciona en navegadores basados en Chromium; el resto queda con el desenfoque común.
+(function detectarRefraccion() {
+    const esChromium = !!navigator.userAgentData?.brands?.some(b => /Chromium/i.test(b.brand));
+    if (esChromium && CSS.supports('backdrop-filter', 'url(#vidrio-liquido) blur(1px)')) {
+        document.documentElement.classList.add('vidrio-refraccion');
+    }
+})();
+
+// ---- Burbuja verde del dock: se desliza hasta la sección activa ----
+let burbujaIniciada = false;
+let burbujaPendiente = 0;
+
+function moverBurbujaDock() {
+    const dock = document.querySelector('.dock');
+    const burbuja = dock?.querySelector('.dock-burbuja');
+    if (!burbuja) return;
+    const activo = dock.querySelector('.dock-item.active[data-panel]');
+    if (!activo || activo.offsetParent === null || activo.offsetWidth === 0) {
+        burbuja.style.opacity = '0';
+        dock.classList.remove('con-burbuja');
+        return;
+    }
+
+    // La primera vez aparece en su lugar; después se desliza.
+    const primeraVez = burbuja.style.opacity !== '1';
+    if (primeraVez) burbuja.classList.add('sin-transicion');
+    // Al cambiar de sección la burbuja se estira como una gota y vuelve a su forma.
+    if (!primeraVez && burbuja.dataset.panel !== activo.dataset.panel) {
+        burbuja.classList.remove('estirandose');
+        void burbuja.offsetWidth;
+        burbuja.classList.add('estirandose');
+    }
+    burbuja.dataset.panel = activo.dataset.panel;
+    burbuja.style.width = `${activo.offsetWidth}px`;
+    burbuja.style.height = `${activo.offsetHeight}px`;
+    burbuja.style.transform = `translate(${activo.offsetLeft}px, ${activo.offsetTop}px)`;
+    burbuja.style.opacity = '1';
+    dock.classList.add('con-burbuja');
+    if (primeraVez) {
+        void burbuja.offsetWidth;
+        burbuja.classList.remove('sin-transicion');
+    }
+}
+
+// Los botones cambian de ancho mientras se abre el nombre de la sección: la burbuja los sigue.
+function iniciarBurbujaDock() {
+    if (burbujaIniciada) return;
+    const dock = document.querySelector('.dock');
+    if (!dock || typeof ResizeObserver === 'undefined') return;
+    burbujaIniciada = true;
+    const programar = () => {
+        cancelAnimationFrame(burbujaPendiente);
+        burbujaPendiente = requestAnimationFrame(moverBurbujaDock);
+    };
+    const observador = new ResizeObserver(programar);
+    observador.observe(dock);
+    dock.querySelectorAll('.dock-item').forEach(item => observador.observe(item));
+    window.addEventListener('resize', programar);
 }
 
 window.abrirMenuMas = function() {

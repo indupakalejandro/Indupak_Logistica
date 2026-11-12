@@ -36,18 +36,20 @@
             --select-bg: rgba(255, 255, 255, 0.15);
 
             /* Curvatura continua G2 */
-            --radius-g2-xs: 0.5rem;
-            --radius-g2-sm: 0.75rem;
-            --radius-g2-md: 1rem;
-            --radius-g2-lg: 1.25rem;
-            --radius-g2-xl: 1.5rem;
+            --radius-g2-xs: 0.6rem;
+            --radius-g2-sm: 0.85rem;
+            --radius-g2-md: 1.15rem;
+            --radius-g2-lg: 1.5rem;
+            --radius-g2-xl: 1.85rem;
+            --radius-g2-xxl: 2.25rem;
             --radius-g2-pill: 9999px;
             --bento-gap: 1rem;
             --bs-border-radius: var(--radius-g2-sm);
             --bs-border-radius-sm: var(--radius-g2-xs);
             --bs-border-radius-lg: var(--radius-g2-md);
             --bs-border-radius-xl: var(--radius-g2-lg);
-            --bs-border-radius-xxl: var(--radius-g2-xl);
+            --bs-border-radius-xxl: var(--radius-g2-xxl);
+            --bs-modal-border-radius: var(--radius-g2-xxl);
         }
 
         /* Tema Claro */
@@ -107,20 +109,18 @@
             padding-bottom: 3rem; /* Add padding for the footer */
         }
 
-        /* Curvatura continua G2: la misma medida se ve más chica en squircle, por eso la escala sube. */
-        /* Curvatura continua G2 solo en contenedores grandes y poco numerosos.
-           Aplicarla a botones, campos o tarjetas internas repetidas hace que Chrome deje partes de la página sin dibujar. */
+        /* Curvatura continua G2: la misma medida se ve más chica en squircle, por eso la escala sube.
+           Solo en contenedores grandes y poco numerosos: aplicarla a botones, campos o tarjetas internas repetidas
+           hace que Chrome deje partes de la página sin dibujar. La barra de navegación queda como píldora perfecta. */
         @supports (corner-shape: squircle) {
             :root {
-                --radius-g2-lg: 1.65rem;
-                --radius-g2-xl: 2rem;
+                --radius-g2-lg: 2rem;
+                --radius-g2-xl: 2.5rem;
+                --radius-g2-xxl: 3rem;
             }
             .card:not(.card .card),
             .modal-content,
-            .dock,
-            .dock-buscador,
             .hoja-mas-panel,
-            #nav-time-widget,
             .novedades-panel,
             .chart-container,
             .glass-toast {
@@ -300,6 +300,32 @@
         .dock-item.active span { max-width: 9rem; opacity: 1; }
         .dock-item:focus-visible,
         .hoja-mas-item:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
+
+        /* Burbuja verde que se desliza hasta la sección activa (en escritorio). */
+        .dock { position: relative; }
+        .dock > .dock-item { position: relative; z-index: 1; }
+        .dock-burbuja {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 2.5rem;
+            border-radius: var(--radius-g2-pill);
+            background: var(--accent-color);
+            box-shadow: 0 4px 14px color-mix(in srgb, var(--accent-color) 45%, transparent);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 0;
+            transition: transform 0.5s cubic-bezier(0.34, 1.25, 0.64, 1), width 0.5s cubic-bezier(0.34, 1.25, 0.64, 1), opacity 0.2s ease;
+        }
+        .dock-burbuja.sin-transicion { transition: none; }
+        @media (min-width: 768px) {
+            .dock.con-burbuja > .dock-item.active { background: transparent; }
+            .dock.con-burbuja > .dock-item.active:hover { background: transparent; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .dock-burbuja { transition: opacity 0.2s ease; }
+        }
         .dock-mas { display: none; }
 
         /* Buscador: una lupa que se despliega */
@@ -395,9 +421,10 @@
                 right: 0.5rem;
                 bottom: calc(0.5rem + env(safe-area-inset-bottom));
                 justify-content: space-around;
-                padding: 0.3rem;
-                border-radius: var(--radius-g2-xl);
+                padding: 0.3rem 0.6rem;
+                border-radius: var(--radius-g2-pill);
             }
+            .dock-burbuja { display: none; }
             .dock-secundario { display: none; }
             .dock-mas { display: inline-flex; }
             .dock .dock-item {
@@ -425,7 +452,7 @@
         /* --- Estilos del resto de la aplicación --- */
         .card {
             background: var(--card-bg);
-            border-radius: var(--radius-g2-xl);
+            border-radius: var(--radius-g2-xxl);
             box-shadow: 0 10px 30px var(--shadow-color);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
@@ -744,6 +771,7 @@
         }
 
         .modal-content {
+            border-radius: var(--radius-g2-xxl);
             background-color: var(--modal-body-bg);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
@@ -1012,7 +1040,7 @@
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             border: 1px solid var(--input-border);
-            border-radius: 2rem;
+            border-radius: var(--radius-g2-pill);
             padding: 0 0.9rem;
             font-size: 0.78rem;
             z-index: 1029;
@@ -1122,7 +1150,7 @@
             width: 100%;
             height: 300px; /* Fixed height for the chart */
             background: var(--card-bg);
-            border-radius: var(--radius-g2-xl);
+            border-radius: var(--radius-g2-xxl);
             box-shadow: 0 10px 30px var(--shadow-color);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
@@ -1407,6 +1435,7 @@
         #bobinas-nav-tabs .nav-link,
         #control-nav-tabs .nav-link,
         #config-nav-tabs .nav-link,
+        #faltantes-nav-tabs .nav-link,
         #horarios-nav-tabs .nav-link {
             color: var(--text-color);
             background: var(--button-bg);
@@ -1422,6 +1451,7 @@
         #bobinas-nav-tabs .nav-link:hover,
         #control-nav-tabs .nav-link:hover,
         #config-nav-tabs .nav-link:hover,
+        #faltantes-nav-tabs .nav-link:hover,
         #horarios-nav-tabs .nav-link:hover {
             background: var(--button-hover-bg);
         }
@@ -1431,6 +1461,7 @@
         #bobinas-nav-tabs .nav-link.active,
         #control-nav-tabs .nav-link.active,
         #config-nav-tabs .nav-link.active,
+        #faltantes-nav-tabs .nav-link.active,
         #horarios-nav-tabs .nav-link.active {
             background: var(--accent-color);
             border-color: var(--accent-color);
@@ -1780,6 +1811,9 @@
         }
         .hor-estado-operario.activo { color: var(--hor-presente); border-color: var(--hor-presente); }
 
+        /* Faltantes: contador de la pestaña */
+        .faltantes-contador { background: color-mix(in srgb, currentColor 18%, transparent); color: inherit; font-size: 0.7rem; margin-left: 0.25rem; vertical-align: 1px; }
+
         /* En planta: salidas y reingresos de la jornada */
         .hor-en-planta-seccion { margin-top: calc(var(--bento-gap) * 1.5); }
         .hor-en-planta-cabecera { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.25rem 0.75rem; margin-bottom: 0.6rem; padding: 0 0.25rem; }
@@ -2054,3 +2088,201 @@
             .hor-print-firmas { margin-top: 44px; display: flex; justify-content: space-around; text-align: center; font-size: 11px; break-inside: avoid; }
             .hor-print-firmas div { border-top: 1px solid #333; width: 180px; padding-top: 6px; }
         }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   VIDRIO LÍQUIDO
+   Refracción con filtro SVG solo en la barra (chica y fija); en el resto, brillo especular,
+   volumen con degradados y movimientos elásticos, que son livianos de dibujar.
+   ══════════════════════════════════════════════════════════════════════════════ */
+:root {
+    --vidrio-borde: rgba(255, 255, 255, 0.24);
+    --vidrio-brillo: rgba(255, 255, 255, 0.55);
+    --vidrio-reflejo: rgba(255, 255, 255, 0.16);
+    --vidrio-sombra-baja: rgba(255, 255, 255, 0.07);
+    --resorte: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --suave: cubic-bezier(0.22, 1, 0.36, 1);
+}
+body.light-mode {
+    --vidrio-borde: rgba(255, 255, 255, 0.65);
+    --vidrio-brillo: rgba(255, 255, 255, 0.95);
+    --vidrio-reflejo: rgba(255, 255, 255, 0.4);
+    --vidrio-sombra-baja: rgba(255, 255, 255, 0.25);
+}
+.filtros-vidrio { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+
+/* Superficies grandes: luz arriba, volumen en el degradado y un canto brillante */
+.card:not(.card .card),
+.chart-container,
+.modal-content,
+.novedades-panel {
+    background-image: linear-gradient(165deg, var(--vidrio-reflejo), rgba(255, 255, 255, 0.02) 38%, rgba(255, 255, 255, 0.05));
+    border-color: var(--vidrio-borde);
+    box-shadow:
+        inset 0 1px 0 var(--vidrio-brillo),
+        inset 1px 0 0 var(--vidrio-sombra-baja),
+        inset 0 -1px 0 var(--vidrio-sombra-baja),
+        0 12px 32px var(--shadow-color);
+}
+
+/* Barra, lupa y reloj: gotas de vidrio */
+.dock,
+.dock-buscador,
+#nav-time-widget {
+    background: linear-gradient(180deg, var(--vidrio-reflejo), rgba(255, 255, 255, 0.03) 60%, rgba(255, 255, 255, 0.08)), var(--navbar-bg);
+    border: 1px solid var(--vidrio-borde);
+    box-shadow:
+        inset 0 1px 1px var(--vidrio-brillo),
+        inset 0 -1px 2px var(--vidrio-sombra-baja),
+        inset 0 0 12px rgba(255, 255, 255, 0.06),
+        0 14px 34px var(--shadow-color);
+}
+.vidrio-refraccion .dock,
+.vidrio-refraccion .dock-buscador,
+.vidrio-refraccion #nav-time-widget {
+    backdrop-filter: url(#vidrio-liquido) blur(6px) saturate(1.5) brightness(1.04);
+}
+/* Reflejo que sigue al puntero */
+.dock-buscador { position: relative; }
+.dock::after,
+.dock-buscador::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 2;
+    background: radial-gradient(140px circle at var(--mx, 50%) var(--my, -40%), rgba(255, 255, 255, 0.1), transparent 65%);
+    opacity: 0;
+    transition: opacity 0.35s ease;
+}
+.dock:hover::after,
+.dock-buscador:hover::after { opacity: 1; }
+
+/* Burbuja de la sección activa: una lente de vidrio verde apoyada ENCIMA del botón.
+   Es translúcida y no desenfoca, así el texto se ve a través del vidrio y se lee bien. */
+.dock-burbuja {
+    z-index: 3;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.02) 48%, rgba(255, 255, 255, 0.08)),
+        color-mix(in srgb, var(--accent-color) 38%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-color) 55%, rgba(255, 255, 255, 0.5));
+    box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.45),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.12),
+        inset 0 0 10px color-mix(in srgb, var(--accent-color) 30%, transparent),
+        0 4px 14px color-mix(in srgb, var(--accent-color) 30%, transparent);
+    backdrop-filter: saturate(1.5) brightness(1.08);
+    -webkit-backdrop-filter: saturate(1.5) brightness(1.08);
+}
+body.light-mode .dock-burbuja { background: linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.05) 48%, rgba(255, 255, 255, 0.15)), color-mix(in srgb, var(--accent-color) 32%, transparent); }
+/* Debajo de la lente el texto queda con su color normal, en negrita */
+@media (min-width: 768px) { .dock > .dock-item.active { color: #fff; font-weight: 700; } }
+.dock-burbuja.estirandose { animation: burbujaGota 0.6s var(--suave); }
+@keyframes burbujaGota {
+    0% { scale: 1 1; }
+    30% { scale: 1.12 0.9; }
+    60% { scale: 0.97 1.04; }
+    100% { scale: 1 1; }
+}
+
+/* Barra replegada: tras 2 s quedan solo la sección actual y la lupa; al pasar el mouse se despliega.
+   Los botones se animan desde su ancho real (2.5rem) para que el movimiento sea parejo de punta a punta. */
+@media (min-width: 768px) {
+    .dock { transition: gap 0.55s var(--fluido), box-shadow 0.3s ease; }
+    .dock > .dock-item {
+        max-width: 2.5rem;
+        overflow: hidden;
+        transition:
+            max-width 0.55s var(--fluido),
+            min-width 0.55s var(--fluido),
+            padding 0.55s var(--fluido),
+            opacity 0.3s ease 0.12s,
+            filter 0.3s ease 0.12s,
+            transform 0.55s var(--fluido),
+            color 0.3s ease,
+            gap 0.35s var(--suave);
+    }
+    .dock > .dock-item.active { max-width: 12rem; }
+    .barra-app.replegada .dock { gap: 0; }
+    .barra-app.replegada .dock > .dock-item:not(.active) {
+        max-width: 0;
+        min-width: 0;
+        padding-left: 0;
+        padding-right: 0;
+        opacity: 0;
+        filter: blur(3px);
+        transform: scale(0.75);
+        pointer-events: none;
+        /* Al replegar, primero se desvanecen y después se cierran */
+        transition:
+            max-width 0.55s var(--fluido) 0.05s,
+            min-width 0.55s var(--fluido) 0.05s,
+            padding 0.55s var(--fluido) 0.05s,
+            opacity 0.2s ease,
+            filter 0.2s ease,
+            transform 0.4s var(--fluido),
+            color 0.3s ease;
+    }
+    .dock > .dock-item:not(.active):hover { transform: translateY(-1px) scale(1.08); }
+}
+:root { --fluido: cubic-bezier(0.32, 0.72, 0, 1); }
+.dock-burbuja.siguiendo { transition: opacity 0.2s ease; }
+
+/* Botones: vidrio plano. Solo un canto de luz fino arriba, sin volumen, sin reflejos que se mueven
+   y sin rebotes, para que no maree. */
+.btn:not(.btn-link) {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
+}
+.btn:not(.btn-link):hover { filter: brightness(1.06); }
+.btn:not(.btn-link):active { filter: brightness(0.94); }
+.btn:not(.btn-link):focus-visible {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 0 0 3px color-mix(in srgb, var(--accent-color) 55%, transparent);
+}
+
+/* Pestañas tipo píldora: mismo criterio, planas */
+.nav-pills .nav-link {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+.nav-pills .nav-link.active { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+
+/* Tarjetas de indicadores: sin levantarse al pasar el mouse */
+button.hor-kpi {
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: inset 0 1px 0 var(--vidrio-reflejo);
+}
+button.hor-kpi:hover { filter: brightness(1.05); }
+
+/* Tablas: encabezado esmerilado y filas que se iluminan como un reflejo */
+.table > thead > tr > th {
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
+    box-shadow: inset 0 -1px 0 var(--vidrio-borde), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.table > tbody > tr > * { transition: background-color 0.3s ease, box-shadow 0.3s ease; }
+.table-hover > tbody > tr:hover > *,
+.hor-tabla > tbody > tr:hover > * {
+    background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.09) 18%, rgba(255, 255, 255, 0.09) 82%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Campos: hundidos en el vidrio */
+.form-control:not(:focus),
+.form-select:not(:focus) {
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.14), inset 0 -1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Quien prefiere menos movimiento o transparencia recibe la versión quieta y sin refracción */
+@media (prefers-reduced-motion: reduce) {
+    .dock-burbuja.estirandose { animation: none; }
+    .btn:not(.btn-link):active,
+    .nav-pills .nav-link:active,
+    button.hor-kpi:hover,
+    button.hor-kpi:active,
+    .dock > .dock-item:not(.active):hover { transform: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+    .vidrio-refraccion .dock,
+    .vidrio-refraccion .dock-buscador,
+    .vidrio-refraccion #nav-time-widget { backdrop-filter: blur(16px); }
+}

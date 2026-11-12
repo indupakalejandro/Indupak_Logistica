@@ -7,7 +7,7 @@ import { renderizarPanelProveedores, actualizarDropdownRoles, setupProviderCardL
 import { renderizarPanelComisionistas, renderLocalidadesCheckboxes } from './comisionistas.js';
 import { renderizarListaCategorias, renderizarListaUnidadesMedida, renderizarListaRoles, renderizarListaLocalidades, renderizarListaProveedoresPlastico } from './configuracion.js';
 import { renderizarPanelCompras } from './compras.js';
-import { renderizarTablaFaltantes } from './faltantes.js';
+import { renderizarTablaFaltantes, escucharHistorialFaltantes } from './faltantes.js';
 import { renderizarPanelPagos, actualizarDropdownProveedoresPlastico } from './pagos.js';
 import { setupControlListeners, controlRestaurarDesdeLocal, controlMostrarLista } from './control.js';
 import { renderizarTablaAnalisis } from './analisis.js';
@@ -15,24 +15,9 @@ import { renderizarBobinasPanel, initBobinas, sincronizarCartBar } from './bobin
 import { initTermos } from './termos.js';
 import { setupHorariosListeners, renderizarHorariosPanel } from './horarios.js';
 
-// Version information
-const APP_VERSION = "1.2";
-const APP_IMPROVEMENTS = `
-    <p class="lead text-center">Estás usando la versión ${APP_VERSION} del sistema de logística de Indupak</p>
-    <p class="text-center text-muted">(¡Sí! Cada vez más útil, menos molesto)</p>
-    <hr class="my-3" style="border-color: rgba(255,255,255,0.2);">
-    <p>Esta versión trae varias mejoras que veníamos deseando hace tiempo. Algunas ya nos estaban sacando canas verdes, así que tomamos cartas en el asunto:</p>
-    <ul>
-        <li>El <strong>dashboard</strong> ahora es más interactivo y visual, con nuevas tarjetas y un gráfico de barras para que tengas una visión clara de tus operaciones.</li>
-        <li>En la sección <strong>Proveedores</strong> ahora tenés nuevos filtros para buscar más rápido y con precisión quirúrgica.</li>
-        <li>Hablando del buscador… corregimos ese error molesto que hacía que la búsqueda quedara activa aunque cerraras el panel. (Sí, ya no vive más en tu pantalla.)</li>
-        <li>A los proveedores ahora podés ponerles una <strong>descripción y una dirección</strong>. Ideal para saber quién es quién sin tener que andar adivinando.</li>
-        <li>¿Notaste que algunas tablas parecían de otra web? Bueno, por fin unificamos el diseño de las <strong>tablas de configuración</strong>. Chau fondo blanco descolgado.</li>
-        <li>El menú tipo carrusel ya era un dolor de cabeza. Lo cambiamos por un <strong>menú desplegable</strong> mucho más ágil. Navegar ahora es cosa seria.</li>
-        <li>Y lo mejor: ¡estrenamos la sección <strong>Faltantes</strong>! Acá podés agregar, editar o eliminar productos que están bajos de stock y ver todo en tiempo real. Sí, en tiempo real. Como debe ser.</li>
-    </ul>
-    <p class="text-center mt-4">Seguimos mejorando con vos. Gracias por bancar cada versión.</p>
-`;
+// Versión del sistema. Las novedades se escriben en el modal #modalVersionInfo de index.html;
+// al cambiar este número, el modal se muestra una vez a cada usuario.
+const APP_VERSION = '4.0';
 
 // --- Register panel handlers (avoids circular imports) ---
 panelHandlers['dashboard'] = renderizarDashboard;
@@ -339,6 +324,8 @@ function setupRealtimeListeners() {
         window.showAlert("Error al cargar los resúmenes mensuales de kilos. Por favor, recargue la página.");
     });
 
+    escucharHistorialFaltantes();
+
     // Faltantes Listener
     onSnapshot(getUserCollection('faltantes'), (snapshot) => {
         state.faltantesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -398,16 +385,13 @@ document.addEventListener('DOMContentLoaded', function() {
     setupUIListeners();
     setupProviderCardListeners();
 
-    // Show version info modal once on first load
-    const hasSeenVersionInfo = localStorage.getItem('hasSeenVersionInfo');
-    if (!hasSeenVersionInfo) {
-        if (state.elements.modalVersionInfoBody) {
-            state.elements.modalVersionInfoBody.innerHTML = APP_IMPROVEMENTS;
-        }
-        if (state.elements.modalVersionInfo) {
-            const versionModal = new bootstrap.Modal(state.elements.modalVersionInfo);
-            versionModal.show();
-        }
-        localStorage.setItem('hasSeenVersionInfo', 'true');
+    document.querySelectorAll('[data-version-app]').forEach(el => { el.textContent = APP_VERSION; });
+
+    // Las novedades se muestran una sola vez por versión.
+    let versionVista = null;
+    try { versionVista = localStorage.getItem('versionVista'); } catch (e) { /* sin almacenamiento: no se muestra */ }
+    if (versionVista !== APP_VERSION && state.elements.modalVersionInfo) {
+        bootstrap.Modal.getOrCreateInstance(state.elements.modalVersionInfo).show();
+        try { localStorage.setItem('versionVista', APP_VERSION); } catch (e) { /* nada que guardar */ }
     }
 });

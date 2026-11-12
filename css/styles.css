@@ -1780,6 +1780,81 @@
         }
         .hor-estado-operario.activo { color: var(--hor-presente); border-color: var(--hor-presente); }
 
+        /* En planta: salidas y reingresos de la jornada */
+        .hor-en-planta-seccion { margin-top: calc(var(--bento-gap) * 1.5); }
+        .hor-en-planta-cabecera { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.25rem 0.75rem; margin-bottom: 0.6rem; padding: 0 0.25rem; }
+        .hor-en-planta-cabecera h6 { margin: 0; font-weight: 700; color: var(--text-color); }
+        .hor-en-planta-cabecera > span { font-size: 0.8rem; color: var(--hor-suave); font-variant-numeric: tabular-nums; }
+        .hor-en-planta-alternar {
+            margin-left: auto;
+            border: 0;
+            background: transparent;
+            color: var(--accent-color);
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 0;
+            cursor: pointer;
+        }
+        .hor-en-planta-alternar:hover { text-decoration: underline; }
+        .hor-en-planta-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: var(--bento-gap); }
+        .hor-en-planta-lista > .hor-vacio { grid-column: 1 / -1; padding: 1.25rem 1rem !important; }
+        .hor-en-planta {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 0.7rem 0.85rem;
+            border-radius: var(--radius-g2-lg);
+            border: 1px solid var(--hor-linea);
+            background: var(--card-bg);
+        }
+        .hor-en-planta-afuera { border: 1px dashed var(--hor-tarde); }
+        .hor-en-planta-fila { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+        .hor-en-planta .hor-operario { min-width: 0; }
+        .hor-en-planta .hor-operario-datos strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hor-btn-novedad { flex: none; font-weight: 600; }
+        .hor-texto-presente { color: var(--hor-presente); }
+        .hor-texto-tolerancia { color: var(--hor-tolerancia); }
+        .hor-texto-tarde { color: var(--hor-tarde); }
+
+        .hor-salidas { display: flex; flex-direction: column; gap: 0.2rem; }
+        .hor-salida { display: inline-flex; align-items: flex-start; gap: 0.35rem; font-size: 0.76rem; line-height: 1.3; color: var(--hor-suave); }
+        .hor-salida i { color: var(--hor-extra); margin-top: 0.1rem; }
+        .hor-salida-abierta, .hor-salida-abierta i { color: var(--hor-tarde); font-weight: 600; }
+        td .hor-salidas { margin-top: 0.15rem; }
+
+        .hor-motivos { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+        .hor-motivos .btn-check:checked + .btn { background: var(--accent-color); border-color: var(--accent-color); color: #fff; }
+        .hor-salida-hora { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .hor-salidas-vacio { margin: 0; font-size: 0.8rem; color: var(--hor-suave); }
+        .hor-salida-fila {
+            display: grid;
+            grid-template-columns: 6.2rem 6.2rem minmax(0, 1fr) auto;
+            align-items: end;
+            gap: 0.4rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--hor-linea);
+        }
+        .hor-salida-fila:last-child { border-bottom: 0; }
+        .hor-salida-fila label { display: flex; flex-direction: column; gap: 0.15rem; margin: 0; min-width: 0; }
+        .hor-salida-fila small { font-size: 0.7rem; color: var(--hor-suave); }
+        .hor-salida-nota { grid-column: 1 / -1; }
+        .hor-cal-con-salida { position: relative; }
+        .hor-cal-con-salida::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            right: 3px;
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--hor-texto-activo);
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+        }
+        @media (max-width: 575.98px) {
+            .hor-salida-fila { grid-template-columns: 1fr 1fr auto; }
+            .hor-salida-motivo { grid-column: 1 / -1; grid-row: 2; }
+        }
+
         /* Reporte */
         .hor-reporte-top {
             display: grid;
@@ -1844,6 +1919,7 @@
         .hor-kpi-injustificada { --kpi: var(--hor-injustificada); }
         .hor-kpi-justificada { --kpi: var(--hor-justificada); }
         .hor-kpi-franco { --kpi: var(--hor-franco); }
+        .hor-kpi-salidas { --kpi: var(--accent-color); }
 
         .hor-calendario-card {
             aspect-ratio: 1;
@@ -1906,6 +1982,8 @@
             border: 1px solid var(--hor-linea);
             background: var(--cal);
         }
+
+        .hor-leyenda span.hor-leyenda-salida::before { width: 6px; height: 6px; border-radius: 50%; border: 0; background: var(--text-color); }
 
         /* Badges de estado */
         #panel-horarios .badge { font-weight: 600; }

@@ -39,7 +39,17 @@ const FILTROS_REPORTE = {
     tarde: { label: 'Llegadas tarde', coincide: r => r.estado === 'tarde' },
     falta_injustificada: { label: 'Faltas injustificadas', coincide: r => r.estado === 'falta_injustificada' },
     falta_justificada: { label: 'Faltas justificadas', coincide: r => r.estado === 'falta_justificada' },
-    franco: { label: 'Francos / Licencias', coincide: r => r.estado === 'franco' }
+    franco: { label: 'Francos / Licencias', coincide: r => r.estado === 'franco' },
+    salidas: { label: 'Con salidas en la jornada', coincide: r => salidasDe(r).length > 0 }
+};
+
+// Por qué alguien se va durante la jornada.
+const MOTIVOS_SALIDA = {
+    personal: 'Problemas personales',
+    salud: 'Se sintió mal',
+    medico: 'Turno médico / trámite',
+    autorizada: 'Autorizada / tarea externa',
+    otro: 'Otro motivo'
 };
 
 // ---- Estado interno de la vista ----
@@ -156,6 +166,79 @@ function calcularHoras(entrada, salida) {
 }
 
 const turnoDeRegistro = reg => reg.turno || (reg.entrada ? turnoParaHora(reg.entrada)?.nombre : '') || '';
+
+// ---- Salidas durante la jornada ----
+// Cada día guarda sus salidas como { salida, reingreso, motivo, nota }. Sin reingreso, la jornada termina en esa salida;
+// con reingreso, se descuenta el tiempo que estuvo afuera.
+const salidasDe = reg => Array.isArray(reg?.salidas) ? reg.salidas : [];
+const salidaEnCurso = salidas => salidas.length > 0 && !salidas[salidas.length - 1].reingreso;
+const minutosDesdeEntrada = (entrada, hora) => modulo(aMinutos(hora) - aMinutos(entrada), 1440);
+const LIMITE_JORNADA_MIN = 18 * 60;
+
+function ordenarSalidas(entrada, salidas) {
+    return [...salidas].sort((a, b) => minutosDesdeEntrada(entrada, a.salida) - minutosDesdeEntrada(entrada, b.salida));
+}
+
+// Devuelve qué está mal en una lista ya ordenada, o '' si se puede guardar.
+function validarSalidas(entrada, salidas) {
+    const rel = hora => minutosDesdeEntrada(entrada, hora);
+    let finAnterior = 0;
+    for (const [i, s] of salidas.entries()) {
+        if (!s.salida) return 'Cada salida necesita la hora en que se fue.';
+        if (!s.motivo) return `Elegí el motivo de la salida de las ${s.salida}.`;
+        if (rel(s.salida) === 0 || rel(s.salida) > LIMITE_JORNADA_MIN) return `La salida de las ${s.salida} tiene que ser después de la entrada (${entrada}).`;
+        if (rel(s.salida) <= finAnterior) return `La salida de las ${s.salida} se superpone con la salida anterior.`;
+        if (!s.reingreso) {
+            if (i < salidas.length - 1) return `Falta la hora en que volvió de la salida de las ${s.salida}.`;
+            continue;
+        }
+        if (rel(s.reingreso) <= rel(s.salida) || rel(s.reingreso) > LIMITE_JORNADA_MIN) return `El reingreso de las ${s.reingreso} tiene que ser después de la salida (${s.salida}).`;
+        finAnterior = rel(s.reingreso);
+    }
+    return '';
+}
+
+const minutosFueraDe = (entrada, salidas) => salidas
+    .filter(s => s.salida && s.reingreso)
+    .reduce((total, s) => total + minutosDesdeEntrada(entrada, s.reingreso) - minutosDesdeEntrada(entrada, s.salida), 0);
+
+// Hora en que termina el día si no hubiera salidas: la que se cargó o, si no, la del turno.
+function salidaProgramadaDe(reg) {
+    if (reg.salidaProgramada) return reg.salidaProgramada;
+    if (!salidaEnCurso(salidasDe(reg)) && reg.salida) return reg.salida;
+    return turnoParaHora(reg.entrada)?.salida || '';
+}
+
+function aplicarSalidas({ entrada, salidaProgramada, salidas }) {
+    const ordenadas = ordenarSalidas(entrada, salidas);
+    const minutosFuera = minutosFueraDe(entrada, ordenadas);
+    const salida = salidaEnCurso(ordenadas) ? ordenadas[ordenadas.length - 1].salida : salidaProgramada;
+    const { normales } = calcularHoras(entrada, salida);
+    return {
+        salidas: ordenadas,
+        salida,
+        salidaProgramada,
+        minutosFuera,
+        horasTrabajadas: Number(Math.max(0, normales - minutosFuera / 60).toFixed(2))
+    };
+}
+
+function textoSalida(s, enCurso = false) {
+    const detalle = [MOTIVOS_SALIDA[s.motivo] || s.motivo, s.nota].filter(Boolean).join(' · ');
+    const base = s.reingreso
+        ? `Salió ${s.salida}, volvió ${s.reingreso}`
+        : enCurso ? `Afuera desde las ${s.salida}` : `Se retiró ${s.salida}`;
+    return detalle ? `${base} · ${detalle}` : base;
+}
+
+// enCurso: la jornada sigue abierta, así que una salida sin reingreso todavía puede volver.
+function htmlSalidas(salidas, enCurso = false) {
+    if (!salidas.length) return '';
+    return `<div class="hor-salidas">${salidas.map((s, i) => `
+        <span class="hor-salida${s.reingreso ? '' : ' hor-salida-abierta'}">
+            <i class="bi ${s.reingreso ? 'bi-arrow-left-right' : 'bi-box-arrow-right'}"></i>${escapeHtml(textoSalida(s, enCurso && i === salidas.length - 1))}
+        </span>`).join('')}</div>`;
+}
 
 // ---- Helpers generales ----
 function escapeHtml(str) {
@@ -319,6 +402,7 @@ export function renderizarPlanillaDiaria() {
         return;
     }
 
+    renderizarEnPlanta(jornada);
     const conRegistro = new Set(state.asistenciaData.filter(a => a.fecha === jornada.fecha).map(r => r.operarioId));
     const activos = state.operariosData.filter(op => op.activo !== false);
     const sinRegistro = activos.filter(op => !conRegistro.has(op.id));
@@ -332,6 +416,156 @@ export function renderizarPlanillaDiaria() {
     }
     sincronizarTarjetas(lista, visibles);
 }
+
+// Quienes ya entraron en la jornada: desde acá se anota si se van antes o si vuelven.
+let enPlantaTodosLosTurnos = false;
+
+function renderizarEnPlanta(jornada) {
+    const seccion = document.getElementById('horarios-en-planta');
+    const lista = document.getElementById('horarios-en-planta-lista');
+    if (!seccion || !lista) return;
+
+    const delDia = state.asistenciaData.filter(a => a.fecha === jornada.fecha && esPresencia(a.estado) && a.entrada);
+    const delTurno = delDia.filter(a => turnoDeRegistro(a) === jornada.turno.nombre);
+    const otros = delDia.length - delTurno.length;
+    seccion.style.display = delDia.length ? '' : 'none';
+    if (!delDia.length) return;
+
+    const mostrados = enPlantaTodosLosTurnos ? delDia : delTurno;
+    const visibles = ordenarPorNombre(mostrados
+        .map(reg => ({ ...reg, nombre: reg.operarioNombre, puesto: reg.operarioPuesto }))
+        .filter(reg => coincideBusqueda({ ...state.operariosData.find(o => o.id === reg.operarioId), ...reg })));
+    const afuera = mostrados.filter(reg => salidaEnCurso(salidasDe(reg))).length;
+
+    escribirTexto('horarios-en-planta-titulo', enPlantaTodosLosTurnos ? 'Ingresaron hoy' : `En planta · Turno ${jornada.turno.nombre}`);
+    escribirTexto('horarios-en-planta-resumen', `${mostrados.length - afuera} adentro${afuera ? ` · ${afuera} afuera` : ''}`);
+    const alternar = document.getElementById('horarios-en-planta-alternar');
+    alternar.style.display = otros ? '' : 'none';
+    alternar.textContent = enPlantaTodosLosTurnos ? `Solo turno ${jornada.turno.nombre}` : `Ver también otros turnos (${otros})`;
+
+    if (!visibles.length) {
+        lista.innerHTML = `<div class="hor-vacio">${mostrados.length ? 'Nadie coincide con la búsqueda.' : `Todavía no entró nadie del turno ${escapeHtml(jornada.turno.nombre)}.`}</div>`;
+        return;
+    }
+
+    lista.innerHTML = visibles.map(reg => {
+        const salidas = salidasDe(reg);
+        const afuera = salidaEnCurso(salidas);
+        const info = ESTADOS[reg.estado] || ESTADOS.sin_registrar;
+        const turno = turnoDeRegistro(reg);
+        const otroTurno = turno && turno !== jornada.turno.nombre ? ` · Turno ${escapeHtml(turno)}` : '';
+        return `
+            <article class="hor-en-planta${afuera ? ' hor-en-planta-afuera' : ''}">
+                <div class="hor-en-planta-fila">
+                    <div class="hor-operario">
+                        <span class="hor-avatar">${escapeHtml(iniciales(reg.operarioNombre))}</span>
+                        <div class="hor-operario-datos">
+                            <strong>${escapeHtml(reg.operarioNombre)}</strong>
+                            <small>Entró ${escapeHtml(reg.entrada)} · <span class="hor-texto-${info.css}">${info.label}</span>${otroTurno}</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm ${afuera ? 'btn-primary' : 'btn-outline-warning'} hor-btn-novedad" onclick="horariosAbrirSalida('${reg.id}')">
+                        <i class="bi ${afuera ? 'bi-box-arrow-in-right' : 'bi-box-arrow-right'} me-1"></i>${afuera ? 'Volvió' : 'Se va'}
+                    </button>
+                </div>
+                ${htmlSalidas(salidas, true)}
+            </article>`;
+    }).join('');
+}
+
+window.horariosAlternarEnPlanta = function() {
+    enPlantaTodosLosTurnos = !enPlantaTodosLosTurnos;
+    renderizarEnPlanta(jornadaActual());
+};
+
+// ---- Modal rápido: se va o volvió ----
+let guardandoSalida = false;
+
+window.horariosAbrirSalida = function(asistenciaId) {
+    const reg = state.asistenciaData.find(a => a.id === asistenciaId);
+    if (!reg) return;
+    const salidas = ordenarSalidas(reg.entrada, salidasDe(reg));
+    const vuelve = salidaEnCurso(salidas);
+    const ultima = salidas[salidas.length - 1];
+
+    document.getElementById('salida-asistencia-id').value = asistenciaId;
+    document.getElementById('salida-tipo').value = vuelve ? 'reingreso' : 'salida';
+    document.getElementById('salida-hora').value = jornadaActual().hora;
+    document.getElementById('salida-nota').value = '';
+    document.getElementById('salida-titulo').innerHTML = vuelve
+        ? `<i class="bi bi-box-arrow-in-right me-2"></i>Volvió: ${escapeHtml(reg.operarioNombre)}`
+        : `<i class="bi bi-box-arrow-right me-2"></i>Se va: ${escapeHtml(reg.operarioNombre)}`;
+    document.getElementById('salida-contexto').textContent = vuelve
+        ? `Salió a las ${ultima.salida} (${MOTIVOS_SALIDA[ultima.motivo] || ultima.motivo}). Se descuenta el tiempo que estuvo afuera.`
+        : `Entró a las ${reg.entrada}. Si no vuelve, su jornada termina a esta hora; si vuelve, anotá el reingreso desde acá mismo.`;
+    document.getElementById('salida-motivos-grupo').style.display = vuelve ? 'none' : '';
+    document.getElementById('salida-nota-label').textContent = vuelve ? 'Detalle al volver (opcional)' : 'Detalle (opcional)';
+    document.getElementById('salida-motivos').innerHTML = Object.entries(MOTIVOS_SALIDA).map(([valor, label]) => `
+        <input type="radio" class="btn-check" name="salida-motivo" id="salida-motivo-${valor}" value="${valor}" autocomplete="off">
+        <label class="btn btn-sm btn-outline-secondary" for="salida-motivo-${valor}">${label}</label>`).join('');
+
+    const modalEl = document.getElementById('modalSalidaJornada');
+    modalEl.addEventListener('shown.bs.modal', () => document.getElementById('salida-hora').focus(), { once: true });
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+};
+
+window.horariosGuardarSalida = async function() {
+    if (guardandoSalida) return;
+    const reg = state.asistenciaData.find(a => a.id === document.getElementById('salida-asistencia-id').value);
+    if (!reg) return;
+
+    const vuelve = document.getElementById('salida-tipo').value === 'reingreso';
+    const hora = document.getElementById('salida-hora').value;
+    const nota = document.getElementById('salida-nota').value.trim();
+    const motivo = document.querySelector('input[name="salida-motivo"]:checked')?.value || '';
+    if (!hora) {
+        showAlert('Cargá la hora.', 'warning');
+        return;
+    }
+    if (!vuelve && !motivo) {
+        showAlert('Elegí el motivo de la salida.', 'warning');
+        return;
+    }
+
+    const anteriores = ordenarSalidas(reg.entrada, salidasDe(reg));
+    let salidas;
+    if (vuelve) {
+        const ultima = anteriores[anteriores.length - 1];
+        const notaFinal = [ultima.nota, nota && `Al volver: ${nota}`].filter(Boolean).join(' · ');
+        salidas = [...anteriores.slice(0, -1), { ...ultima, reingreso: hora, nota: notaFinal }];
+    } else {
+        salidas = ordenarSalidas(reg.entrada, [...anteriores, { salida: hora, reingreso: '', motivo, nota }]);
+    }
+    const error = validarSalidas(reg.entrada, salidas);
+    if (error) {
+        showAlert(error, 'warning');
+        return;
+    }
+
+    const datos = aplicarSalidas({ entrada: reg.entrada, salidaProgramada: salidaProgramadaDe(reg), salidas });
+    guardandoSalida = true;
+    try {
+        // Se guarda también la clasificación vigente de la llegada para que las horas no se ajusten dos veces.
+        await updateDoc(doc(getUserCollection('asistencia'), reg.id), {
+            ...datos,
+            estado: reg.estado,
+            minutosTarde: parseCantidad(reg.minutosTarde),
+            minutosTolerancia: parseCantidad(reg.minutosTolerancia),
+            actualizadoEn: new Date()
+        });
+        const ultima = datos.salidas[datos.salidas.length - 1];
+        const mensaje = vuelve
+            ? `volvió a las ${hora}, estuvo afuera ${formatearMinutos(minutosDesdeEntrada(reg.entrada, hora) - minutosDesdeEntrada(reg.entrada, ultima.salida))}.`
+            : `se fue a las ${hora} (${MOTIVOS_SALIDA[motivo]}).`;
+        showNotification(`<strong>${escapeHtml(reg.operarioNombre)}</strong> ${escapeHtml(mensaje)}`, vuelve ? 'success' : 'info');
+        bootstrap.Modal.getInstance(document.getElementById('modalSalidaJornada'))?.hide();
+    } catch (e) {
+        console.error('Error guardando salida:', e);
+        showAlert('No se pudo guardar. Revisá la conexión y volvé a intentar.', 'danger');
+    } finally {
+        guardandoSalida = false;
+    }
+};
 
 function mensajeListaVacia(totalActivos, totalPendientes) {
     if (totalActivos === 0) {
@@ -612,8 +846,11 @@ export function resumenEquipoDelMes() {
 }
 
 function calcularResumen(registros) {
-    const r = { presentes: 0, tolerancias: 0, tardes: 0, minutosTarde: 0, justificadas: 0, injustificadas: 0, francos: 0, horasNormales: 0, horasExtras: 0 };
+    const r = { presentes: 0, tolerancias: 0, tardes: 0, minutosTarde: 0, justificadas: 0, injustificadas: 0, francos: 0, horasNormales: 0, horasExtras: 0, diasConSalidas: 0, retiros: 0 };
     registros.forEach(reg => {
+        const salidas = salidasDe(reg);
+        if (salidas.length) r.diasConSalidas++;
+        if (salidaEnCurso(salidas)) r.retiros++;
         if (reg.estado === 'presente') r.presentes++;
         else if (reg.estado === 'tolerancia') r.tolerancias++;
         else if (reg.estado === 'tarde') {
@@ -677,6 +914,8 @@ function renderizarKpisReporte(r) {
     escribirTexto('rep-kpi-justificadas', r.justificadas);
     escribirTexto('rep-kpi-injustificadas', r.injustificadas);
     escribirTexto('rep-kpi-francos', r.francos);
+    escribirTexto('rep-kpi-salidas', r.diasConSalidas);
+    escribirTexto('rep-kpi-salidas-detalle', r.retiros ? `${r.retiros} sin volver` : r.diasConSalidas ? 'Siempre volvió' : 'Sin salidas');
 }
 
 function renderizarCalendario(registros, desde, hasta) {
@@ -729,12 +968,14 @@ function renderizarCalendario(registros, desde, hasta) {
         const reg = porFecha.get(fecha);
         const enRango = (!desde || fecha >= desde) && (!hasta || fecha <= hasta) && fecha <= hoy;
         const css = reg ? ESTADOS[reg.estado]?.css || 'pendiente' : 'vacio';
+        const salidas = reg ? salidasDe(reg) : [];
+        const conSalida = salidas.length ? ' hor-cal-con-salida' : '';
         const descripcion = reg
-            ? `${formatearFechaCorta(fecha)}: ${ESTADOS[reg.estado]?.label || reg.estado}. Clic para editar.`
+            ? `${formatearFechaCorta(fecha)}: ${ESTADOS[reg.estado]?.label || reg.estado}${salidas.length ? `, ${salidas.map(s => textoSalida(s)).join('; ')}` : ''}. Clic para editar.`
             : `${formatearFechaCorta(fecha)}: sin cargar. Clic para cargar.`;
         const accion = reg ? `horariosAbrirModalEditarAsistencia('${reg.id}')` : `horariosAbrirModalNuevaAsistencia('${fecha}')`;
         celdas += enRango
-            ? `<button type="button" class="hor-cal-dia hor-cal-${css}${fecha === hoy ? ' hor-cal-hoy' : ''}" title="${descripcion}" aria-label="${descripcion}" onclick="${accion}">${dia}</button>`
+            ? `<button type="button" class="hor-cal-dia hor-cal-${css}${conSalida}${fecha === hoy ? ' hor-cal-hoy' : ''}" title="${escapeHtml(descripcion)}" aria-label="${escapeHtml(descripcion)}" onclick="${accion}">${dia}</button>`
             : `<span class="hor-cal-dia hor-cal-fuera">${dia}</span>`;
     }
 
@@ -785,7 +1026,7 @@ function renderizarHistorialReporte(registros) {
                 <td data-label="Horas" class="text-end">${formatCantidad(r.horasTrabajadas, 2)} hs</td>
                 <td data-label="Extras" class="text-end">${extras > 0 ? `<span class="badge badge-extra-horas">+${formatCantidad(extras, 2)} hs</span>` : '—'}</td>
                 <td data-label="Tardanza" class="text-center">${tarde > 0 ? `<span class="badge badge-asistencia-tarde">${formatearMinutos(tarde)}</span>` : tolerancia > 0 ? `<span class="badge badge-asistencia-tolerancia">${formatearMinutos(tolerancia)}</span>` : '—'}</td>
-                <td data-label="Observaciones"><small>${escapeHtml(r.observaciones || r.motivo || '—')}</small></td>
+                <td data-label="Observaciones">${r.observaciones || r.motivo || !salidasDe(r).length ? `<small>${escapeHtml(r.observaciones || r.motivo || '—')}</small>` : ''}${htmlSalidas(salidasDe(r))}</td>
                 <td class="text-center">
                     <button class="btn btn-sm btn-outline-primary py-0 px-2" title="Editar registro" aria-label="Editar registro del ${formatearFechaCorta(r.fecha)}" onclick="horariosAbrirModalEditarAsistencia('${r.id}')">
                         <i class="bi bi-pencil-fill" style="font-size:0.75rem;"></i>
@@ -817,7 +1058,7 @@ window.horariosExportarCSV = function() {
     };
     const numero = valor => formatCantidad(parseCantidad(valor), 2).replace('.', ',');
     const filas = [
-        ['Fecha', 'Turno', 'Estado', 'Entrada', 'Salida', 'Horas normales', 'Horas extras', 'Minutos tarde', 'Observaciones'].map(celda).join(';'),
+        ['Fecha', 'Turno', 'Estado', 'Entrada', 'Salida', 'Horas normales', 'Horas extras', 'Minutos tarde', 'Salidas durante la jornada', 'Observaciones'].map(celda).join(';'),
         ...registros.map(r => [
             celda(formatearFechaCorta(r.fecha)),
             celda(turnoDeRegistro(r)),
@@ -827,6 +1068,7 @@ window.horariosExportarCSV = function() {
             numero(r.horasTrabajadas),
             numero(r.horasExtras),
             numero(r.minutosTarde),
+            celda(salidasDe(r).map(s => textoSalida(s)).join(' | ')),
             celda(r.observaciones || r.motivo)
         ].join(';'))
     ];
@@ -898,7 +1140,7 @@ window.horariosImprimirReporte = function() {
                     <td>${formatCantidad(reg.horasTrabajadas, 2)}</td>
                     <td>${parseCantidad(reg.horasExtras) > 0 ? `+${formatCantidad(reg.horasExtras, 2)}` : '—'}</td>
                     <td>${parseCantidad(reg.minutosTarde) > 0 ? formatearMinutos(parseCantidad(reg.minutosTarde)) : '—'}</td>
-                    <td>${escapeHtml(reg.observaciones || reg.motivo || '—')}</td>
+                    <td>${escapeHtml([...salidasDe(reg).map(s => textoSalida(s)), reg.observaciones || reg.motivo].filter(Boolean).join(' · ') || '—')}</td>
                 </tr>`).join('') || '<tr><td colspan="8">Sin registros en el período.</td></tr>'}
             </tbody>
         </table>
@@ -1082,12 +1324,73 @@ window.horariosEliminarOperario = function(id) {
 // MODAL: CARGAR O CORREGIR UN DÍA DESDE EL REPORTE
 // ══════════════════════════════════════════════════════════════════════════════
 
+function filaSalidaModal(s = {}) {
+    const opciones = Object.entries(MOTIVOS_SALIDA)
+        .map(([valor, label]) => `<option value="${valor}"${s.motivo === valor ? ' selected' : ''}>${label}</option>`).join('');
+    return `
+        <div class="hor-salida-fila">
+            <label><small>Se fue</small><input type="time" class="form-control form-control-sm" data-campo="salida" value="${escapeHtml(s.salida)}" oninput="horariosCambioSalidasModal()"></label>
+            <label><small>Volvió</small><input type="time" class="form-control form-control-sm" data-campo="reingreso" value="${escapeHtml(s.reingreso)}" oninput="horariosCambioSalidasModal()" title="Vacío si no volvió"></label>
+            <label class="hor-salida-motivo"><small>Motivo</small><select class="form-select form-select-sm" data-campo="motivo"><option value="">Elegí…</option>${opciones}</select></label>
+            <button type="button" class="btn btn-sm btn-outline-danger hor-salida-quitar" title="Quitar esta salida" aria-label="Quitar esta salida" onclick="this.closest('.hor-salida-fila').remove(); horariosCambioSalidasModal()"><i class="bi bi-x-lg"></i></button>
+            <label class="hor-salida-nota"><small>Detalle</small><input type="text" class="form-control form-control-sm" data-campo="nota" value="${escapeHtml(s.nota)}" placeholder="Opcional"></label>
+        </div>`;
+}
+
+function leerSalidasModal() {
+    return [...document.querySelectorAll('#edit-asistencia-salidas .hor-salida-fila')]
+        .map(fila => {
+            const valor = campo => fila.querySelector(`[data-campo="${campo}"]`).value.trim();
+            return { salida: valor('salida'), reingreso: valor('reingreso'), motivo: valor('motivo'), nota: valor('nota') };
+        })
+        .filter(s => s.salida || s.reingreso || s.nota);
+}
+
+function pintarSalidasModal(salidas) {
+    const cont = document.getElementById('edit-asistencia-salidas');
+    cont.innerHTML = salidas.length
+        ? salidas.map(filaSalidaModal).join('')
+        : '<p class="hor-salidas-vacio">No se fue antes ni salió durante la jornada.</p>';
+}
+
+window.horariosAgregarSalidaModal = function() {
+    const cont = document.getElementById('edit-asistencia-salidas');
+    cont.querySelector('.hor-salidas-vacio')?.remove();
+    cont.insertAdjacentHTML('beforeend', filaSalidaModal());
+    cont.lastElementChild.querySelector('[data-campo="salida"]').focus();
+};
+
+// Una salida sin reingreso cierra el día: la hora de salida pasa a ser esa, y vuelve a la del turno si después se carga el reingreso.
+window.horariosCambioSalidasModal = function() {
+    const inputSalida = document.getElementById('edit-asistencia-salida');
+    const entrada = document.getElementById('edit-asistencia-entrada').value;
+    const salidas = entrada ? ordenarSalidas(entrada, leerSalidasModal().filter(s => s.salida)) : [];
+    if (!document.querySelector('#edit-asistencia-salidas .hor-salida-fila')) pintarSalidasModal([]);
+
+    if (salidaEnCurso(salidas)) {
+        inputSalida.value = salidas[salidas.length - 1].salida;
+        inputSalida.dataset.porSalida = '1';
+    } else if (inputSalida.dataset.porSalida) {
+        inputSalida.value = inputSalida.dataset.programada || turnoParaHora(entrada)?.salida || '';
+        delete inputSalida.dataset.porSalida;
+    }
+    recalcularHorasModal();
+};
+
+window.horariosCambioSalidaManualModal = function() {
+    const inputSalida = document.getElementById('edit-asistencia-salida');
+    delete inputSalida.dataset.porSalida;
+    inputSalida.dataset.programada = inputSalida.value;
+    recalcularHorasModal();
+};
+
 function recalcularHorasModal() {
     const entrada = document.getElementById('edit-asistencia-entrada').value;
     const salida = document.getElementById('edit-asistencia-salida').value;
     if (!entrada || !salida) return;
     const { normales, extras } = calcularHoras(entrada, salida);
-    document.getElementById('edit-asistencia-horas').value = formatCantidad(normales);
+    const fuera = minutosFueraDe(entrada, leerSalidasModal().filter(s => s.salida && s.reingreso));
+    document.getElementById('edit-asistencia-horas').value = formatCantidad(Math.max(0, normales - fuera / 60));
 
     // Respeta un valor cargado a mano: solo pisa las extras si seguían siendo el cálculo automático anterior.
     const inputExtras = document.getElementById('edit-asistencia-extras');
@@ -1110,6 +1413,13 @@ function completarModalAsistencia({ id, nombre, reg, fecha, permiteEliminar }) {
     asignar('obs', reg?.observaciones || reg?.motivo || '');
     document.getElementById('edit-asistencia-extras').dataset.auto = reg?.entrada && reg?.salida ? calcularHoras(reg.entrada, reg.salida).extras : 0;
     document.getElementById('edit-asistencia-btn-eliminar').style.visibility = permiteEliminar ? 'visible' : 'hidden';
+
+    const salidas = reg?.entrada ? ordenarSalidas(reg.entrada, salidasDe(reg)) : [];
+    const inputSalida = document.getElementById('edit-asistencia-salida');
+    inputSalida.dataset.programada = reg?.entrada ? salidaProgramadaDe(reg) : '';
+    if (salidaEnCurso(salidas)) inputSalida.dataset.porSalida = '1';
+    else delete inputSalida.dataset.porSalida;
+    pintarSalidasModal(salidas);
 
     window.horariosCambiarEstadoModal();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarAsistencia')).show();
@@ -1139,7 +1449,7 @@ window.horariosProcesarLlegadaModal = function() {
     document.getElementById('edit-asistencia-tarde').value = turno.minutosTarde;
 
     const salida = document.getElementById('edit-asistencia-salida');
-    if (!salida.value) salida.value = turno.salida;
+    if (!salida.value) salida.value = salida.dataset.programada = turno.salida;
     recalcularHorasModal();
 };
 
@@ -1152,6 +1462,7 @@ window.horariosCambiarEstadoModal = function() {
         if (ausencia) el.value = ['entrada', 'salida'].includes(campo) ? '' : '0';
     });
     if (estado !== 'tarde') document.getElementById('edit-asistencia-tarde').value = '0';
+    document.getElementById('edit-asistencia-salidas-grupo').style.display = ausencia ? 'none' : '';
 };
 
 window.horariosCalcularHorasModal = recalcularHorasModal;
@@ -1176,6 +1487,17 @@ window.horariosGuardarEdicionAsistencia = async function() {
         showAlert('Cargá la hora de entrada.', 'warning');
         return;
     }
+    const salidas = esPresencia(estado) ? ordenarSalidas(entrada, leerSalidasModal()) : [];
+    const errorSalidas = validarSalidas(entrada, salidas);
+    if (errorSalidas) {
+        showAlert(errorSalidas, 'warning');
+        return;
+    }
+    const inputSalida = document.getElementById('edit-asistencia-salida');
+    const salidaProgramada = salidaEnCurso(salidas)
+        ? inputSalida.dataset.programada || turnoParaHora(entrada)?.salida || ''
+        : inputSalida.value;
+
     if (fecha !== reg?.fecha && state.asistenciaData.some(a => a.id !== id && a.operarioId === base.operarioId && a.fecha === fecha)) {
         showAlert(`Este operario ya tiene un registro el ${formatearFechaCorta(fecha)}. Editá ese día o elegí otra fecha.`, 'warning');
         return;
@@ -1191,6 +1513,9 @@ window.horariosGuardarEdicionAsistencia = async function() {
         minutosTarde: parseCantidad(leer('tarde')),
         minutosTolerancia: estado === 'tolerancia' ? turnoParaHora(entrada)?.minutosTolerancia || 0 : 0,
         horasExtras: parseCantidad(leer('extras')),
+        salidas,
+        salidaProgramada: salidas.length ? salidaProgramada : '',
+        minutosFuera: minutosFueraDe(entrada, salidas),
         motivo: estado.includes('falta') ? observaciones : '',
         observaciones,
         actualizadoEn: new Date()

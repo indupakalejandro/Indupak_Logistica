@@ -1457,6 +1457,15 @@
             </div>
 
             <div class="hor-tarjetas" id="horarios-diario-lista"></div>
+
+            <section class="hor-en-planta-seccion" id="horarios-en-planta" aria-labelledby="horarios-en-planta-titulo" style="display:none;">
+                <div class="hor-en-planta-cabecera">
+                    <h6><i class="bi bi-person-check-fill me-2"></i><span id="horarios-en-planta-titulo">En planta</span></h6>
+                    <span id="horarios-en-planta-resumen"></span>
+                    <button type="button" class="hor-en-planta-alternar" id="horarios-en-planta-alternar" onclick="horariosAlternarEnPlanta()"></button>
+                </div>
+                <div class="hor-en-planta-lista" id="horarios-en-planta-lista"></div>
+            </section>
         </div>
 
         <!-- Vista 2: Reporte por operario -->
@@ -1524,6 +1533,7 @@
                         <span class="hor-cal-injustificada">Injust.</span>
                         <span class="hor-cal-justificada">Justif.</span>
                         <span class="hor-cal-franco">Franco</span>
+                        <span class="hor-leyenda-salida">Con salida</span>
                     </div>
                 </div>
             </div>
@@ -1543,6 +1553,7 @@
                     <button type="button" class="hor-kpi hor-kpi-injustificada" data-filtro="falta_injustificada" aria-pressed="false" onclick="horariosFiltrarReporte('falta_injustificada')"><span>Faltas injustificadas</span><strong id="rep-kpi-injustificadas">0</strong></button>
                     <button type="button" class="hor-kpi hor-kpi-justificada" data-filtro="falta_justificada" aria-pressed="false" onclick="horariosFiltrarReporte('falta_justificada')"><span>Faltas justificadas</span><strong id="rep-kpi-justificadas">0</strong></button>
                     <button type="button" class="hor-kpi hor-kpi-franco" data-filtro="franco" aria-pressed="false" onclick="horariosFiltrarReporte('franco')"><span>Francos / Licencias</span><strong id="rep-kpi-francos">0</strong></button>
+                    <button type="button" class="hor-kpi hor-kpi-salidas" data-filtro="salidas" aria-pressed="false" onclick="horariosFiltrarReporte('salidas')"><span>Salidas en jornada</span><strong id="rep-kpi-salidas">0</strong><small id="rep-kpi-salidas-detalle"></small></button>
                 </div>
 
                 <div class="card">
@@ -2093,6 +2104,39 @@
         </div>
     </div>
 
+    <!-- ══════════ MODAL: SALIDA O REINGRESO DURANTE LA JORNADA ══════════ -->
+    <div class="modal fade" id="modalSalidaJornada" tabindex="-1" aria-hidden="true" aria-labelledby="salida-titulo">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="background: var(--modal-body-bg); border: 1px solid var(--input-border);">
+                <div class="modal-header" style="background: var(--modal-header-bg); border-bottom: 1px solid var(--input-border);">
+                    <h5 class="modal-title" id="salida-titulo"></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <form class="modal-body" id="formSalidaJornada" onsubmit="event.preventDefault(); horariosGuardarSalida();">
+                    <input type="hidden" id="salida-asistencia-id">
+                    <input type="hidden" id="salida-tipo">
+                    <p class="small text-muted mb-3" id="salida-contexto"></p>
+                    <div class="mb-3">
+                        <label class="form-label" for="salida-hora">Hora</label>
+                        <input type="time" class="form-control text-center hor-salida-hora" id="salida-hora" required>
+                    </div>
+                    <div class="mb-3" id="salida-motivos-grupo">
+                        <span class="form-label d-block">Motivo</span>
+                        <div class="hor-motivos" id="salida-motivos" role="radiogroup" aria-label="Motivo de la salida"></div>
+                    </div>
+                    <div>
+                        <label class="form-label" for="salida-nota" id="salida-nota-label">Detalle (opcional)</label>
+                        <input type="text" class="form-control" id="salida-nota" placeholder="Ej.: lo pasó a buscar un familiar">
+                    </div>
+                </form>
+                <div class="modal-footer" style="background: var(--modal-footer-bg); border-top: 1px solid var(--input-border);">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" form="formSalidaJornada" class="btn btn-primary btn-sm"><i class="bi bi-floppy me-1"></i>Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ══════════ MODAL: EDITAR ASISTENCIA HISTÓRICA ══════════ -->
     <div class="modal fade" id="modalEditarAsistencia" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-md">
@@ -2127,7 +2171,7 @@
                         </div>
                         <div class="col-4">
                             <label class="form-label small">Salida</label>
-                            <input type="time" class="form-control text-center" id="edit-asistencia-salida" oninput="horariosCalcularHorasModal()">
+                            <input type="time" class="form-control text-center" id="edit-asistencia-salida" oninput="horariosCambioSalidaManualModal()">
                         </div>
                         <div class="col-4">
                             <label class="form-label small">Horas Norm.</label>
@@ -2143,6 +2187,13 @@
                             <label class="form-label">Horas Extras</label>
                             <input type="number" step="any" min="0" class="form-control" id="edit-asistencia-extras" placeholder="0">
                         </div>
+                    </div>
+                    <div class="mb-3" id="edit-asistencia-salidas-grupo">
+                        <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
+                            <span class="form-label mb-0">Salidas durante la jornada</span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="horariosAgregarSalidaModal()"><i class="bi bi-plus-lg me-1"></i>Agregar salida</button>
+                        </div>
+                        <div id="edit-asistencia-salidas"></div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Observaciones / Motivo</label>

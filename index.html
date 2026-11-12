@@ -113,17 +113,7 @@
         </div>
     </div>
 
-    <div id="themeToggleHotspot"></div>
-
-    <div class="corner-btn" id="themeToggle">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-            <path d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm0 17.5V4.75c4.004 0 7.25 3.246 7.25 7.25S16.004 19.75 12 19.75z"/>
-        </svg>
-    </div>
-
-    <div class="corner-btn" id="configToggle" onclick="mostrarPanel('configuracion', event)" title="Configuración">
-        <i class="bi bi-gear-fill"></i>
-    </div>
+    <!-- El tema y la Configuración se abren desde el menú de la hora (arriba a la derecha). -->
 
     <div class="barra-app">
         <nav class="dock" aria-label="Secciones">
@@ -184,10 +174,19 @@
     </div>
 
     <!-- Widget hora + clima al nivel de la navbar -->
-    <div id="nav-time-widget">
+    <div id="nav-time-widget" class="menu-al-pasar" tabindex="0" aria-haspopup="true" aria-label="Hora y clima: opciones">
         <span id="dashboard-temp">—</span>
         <span class="nw-sep">·</span>
         <span id="dashboard-clock">--:--</span>
+        <!-- Al pasar el mouse: tema y Configuración -->
+        <div class="menu-flotante menu-flotante-derecha" role="menu">
+            <button type="button" class="menu-flotante-item" role="menuitem" onclick="alternarTema()">
+                <i class="bi bi-circle-half"></i><span id="menu-hora-tema-texto">Cambiar tema</span>
+            </button>
+            <button type="button" class="menu-flotante-item" role="menuitem" id="menu-hora-configuracion" onclick="mostrarPanel('configuracion')">
+                <i class="bi bi-gear-fill"></i><span>Configuración</span>
+            </button>
+        </div>
     </div>
 
     <!-- Contenedor global de notificaciones transparentes (esquina superior derecha) -->
@@ -1376,8 +1375,8 @@
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-hover mb-0">
-                                <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th class="text-center">Estado</th></tr></thead>
-                                <tbody id="tabla-usuarios-body"><tr><td colspan="4" class="text-center text-muted">Cargando…</td></tr></tbody>
+                                <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th class="text-center">Estado</th><th class="text-center"><span class="visually-hidden">Eliminar</span></th></tr></thead>
+                                <tbody id="tabla-usuarios-body"><tr><td colspan="5" class="text-center text-muted">Cargando…</td></tr></tbody>
                             </table>
                         </div>
                     </div>
@@ -1652,20 +1651,27 @@
             <div class="hor-reporte-top">
                 <div class="card hor-operario-card">
                     <div class="card-body hor-operario-card-body">
-                        <div class="row g-2 align-items-end">
-                            <div class="col-12 col-md-7">
-                                <label class="form-label small text-muted mb-1" for="horarios-reporte-operario-select">Operario</label>
-                                <div class="input-group input-group-sm">
-                                    <button class="btn btn-outline-secondary" type="button" onclick="horariosMoverOperarioReporte(-1)" title="Operario anterior" aria-label="Operario anterior"><i class="bi bi-chevron-left"></i></button>
-                                    <select id="horarios-reporte-operario-select" class="form-select form-select-sm" onchange="horariosCambiarOperarioReporte(this.value)">
-                                        <option value="">Cargando operarios…</option>
-                                    </select>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="horariosMoverOperarioReporte(1)" title="Operario siguiente" aria-label="Operario siguiente"><i class="bi bi-chevron-right"></i></button>
+                        <div class="hor-perfil-cabecera">
+                            <span class="hor-avatar hor-avatar-grande" id="horarios-reporte-avatar"></span>
+                            <div class="hor-perfil-datos">
+                                <!-- El nombre es el selector: flechas para pasar de operario y clic en el nombre para elegir de la lista -->
+                                <div class="hor-selector-operario">
+                                    <button type="button" class="hor-selector-flecha" onclick="horariosMoverOperarioReporte(-1)" title="Operario anterior" aria-label="Operario anterior"><i class="bi bi-chevron-left"></i></button>
+                                    <div class="hor-selector-nombre">
+                                        <h4 id="horarios-reporte-nombre-operario">—</h4>
+                                        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                                        <select id="horarios-reporte-operario-select" class="hor-selector-select" aria-label="Elegir operario" onchange="horariosCambiarOperarioReporte(this.value)">
+                                            <option value="">Cargando operarios…</option>
+                                        </select>
+                                    </div>
+                                    <button type="button" class="hor-selector-flecha" onclick="horariosMoverOperarioReporte(1)" title="Operario siguiente" aria-label="Operario siguiente"><i class="bi bi-chevron-right"></i></button>
                                 </div>
+                                <div class="hor-perfil-info" id="horarios-reporte-info-operario"></div>
                             </div>
-                            <div class="col-12 col-md-5">
-                                <label class="form-label small text-muted mb-1" for="horarios-reporte-rango-select">Período</label>
-                                <select id="horarios-reporte-rango-select" class="form-select form-select-sm" onchange="horariosCambiarPresetRangoReporte(this.value)">
+                            <div class="hor-periodo">
+                                <label class="visually-hidden" for="horarios-reporte-rango-select">Período</label>
+                                <i class="bi bi-calendar3" aria-hidden="true"></i>
+                                <select id="horarios-reporte-rango-select" class="hor-periodo-select" onchange="horariosCambiarPresetRangoReporte(this.value)">
                                     <option value="mes_actual">Este mes</option>
                                     <option value="mes_anterior">Mes anterior</option>
                                     <option value="ultimos_30">Últimos 30 días</option>
@@ -1674,20 +1680,19 @@
                                     <option value="personalizado">Elegir fechas…</option>
                                 </select>
                             </div>
-                            <div class="col-12" id="horarios-reporte-fechas-custom" style="display:none;">
-                                <span class="form-label small text-muted mb-1 d-block">Desde / Hasta</span>
-                                <div class="d-flex align-items-center gap-1">
-                                    <input type="date" id="horarios-reporte-desde" class="form-control form-control-sm" aria-label="Desde" onchange="horariosCambiarFechasCustom()">
-                                    <input type="date" id="horarios-reporte-hasta" class="form-control form-control-sm" aria-label="Hasta" onchange="horariosCambiarFechasCustom()">
-                                </div>
-                            </div>
+                        </div>
+                        <div class="hor-fechas-custom" id="horarios-reporte-fechas-custom" style="display:none;">
+                            <input type="date" id="horarios-reporte-desde" class="form-control form-control-sm" aria-label="Desde" onchange="horariosCambiarFechasCustom()">
+                            <span>a</span>
+                            <input type="date" id="horarios-reporte-hasta" class="form-control form-control-sm" aria-label="Hasta" onchange="horariosCambiarFechasCustom()">
                         </div>
 
                         <div class="hor-perfil" id="horarios-reporte-perfil-card" style="display:none;">
-                            <span class="hor-avatar hor-avatar-grande" id="horarios-reporte-avatar"></span>
-                            <div class="hor-perfil-datos">
-                                <h4 id="horarios-reporte-nombre-operario">—</h4>
-                                <div class="hor-perfil-info" id="horarios-reporte-info-operario"></div>
+                            <div class="hor-torta-bloque">
+                                <div class="hor-torta" id="horarios-reporte-torta" role="img" aria-label="Tiempo en fábrica">
+                                    <div class="hor-torta-centro"><strong id="horarios-torta-total">0:00</strong><small>en fábrica</small></div>
+                                </div>
+                                <ul class="hor-torta-leyenda" id="horarios-torta-leyenda"></ul>
                             </div>
                             <div class="hor-presentismo">
                                 <small>Presentismo del período</small>
@@ -1735,11 +1740,16 @@
                     <button type="button" class="hor-kpi hor-kpi-salidas" data-filtro="salidas" aria-pressed="false" onclick="horariosFiltrarReporte('salidas')"><span>Salidas en jornada</span><strong id="rep-kpi-salidas">0</strong><small id="rep-kpi-salidas-detalle"></small></button>
                 </div>
 
-                <div class="card">
+                <div class="card hor-detalle-card" id="horarios-detalle-card">
                     <div class="card-header py-2 px-3 hor-card-header">
-                        <h6 class="mb-0 fw-bold"><i class="bi bi-table me-2"></i>Detalle día por día</h6>
+                        <button type="button" class="hor-detalle-alternar" id="horarios-detalle-alternar" aria-expanded="false" aria-controls="horarios-detalle-cuerpo" onclick="horariosAlternarDetalle()">
+                            <i class="bi bi-chevron-right hor-detalle-flecha" aria-hidden="true"></i>
+                            <i class="bi bi-table me-1" aria-hidden="true"></i>Detalle día por día
+                            <small class="text-muted ms-1" id="horarios-detalle-cuenta"></small>
+                        </button>
                         <button type="button" class="hor-filtro-activo" id="horarios-reporte-filtro-activo" style="display:none;" title="Quitar filtro" onclick="horariosFiltrarReporte('')"></button>
                     </div>
+                    <div class="hor-detalle-cuerpo" id="horarios-detalle-cuerpo" hidden>
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table mb-0 align-middle hor-tabla hor-tabla-apilable">
@@ -1762,6 +1772,7 @@
                         </div>
                     </div>
                     <div class="card-footer text-muted text-center py-2" id="horarios-reporte-footer">0 registros.</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2359,7 +2370,7 @@
                         </div>
                         <div class="col-4">
                             <label class="form-label small">Horas Norm.</label>
-                            <input type="number" step="any" min="0" class="form-control text-center" id="edit-asistencia-horas">
+                            <input type="text" inputmode="numeric" pattern="\d{1,3}(:\d{1,2})?([.,]\d+)?" class="form-control text-center" id="edit-asistencia-horas" placeholder="8:00" title="Horas en formato 7:40">
                         </div>
                     </div>
                     <div class="row g-2 mb-3">
@@ -2369,7 +2380,7 @@
                         </div>
                         <div class="col-6">
                             <label class="form-label">Horas Extras</label>
-                            <input type="number" step="any" min="0" class="form-control" id="edit-asistencia-extras" placeholder="0">
+                            <input type="text" inputmode="numeric" pattern="\d{1,3}(:\d{1,2})?([.,]\d+)?" class="form-control" id="edit-asistencia-extras" placeholder="0:00" title="Horas en formato 1:00">
                         </div>
                     </div>
                     <div class="row g-2 mb-3" id="edit-asistencia-descanso-grupo">

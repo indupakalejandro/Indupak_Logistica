@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { getUserCollection, doc, updateDoc, addDoc, deleteDoc } from './firebase.js';
 import { formatCantidad, marcarBloqueListo } from './ui.js';
 import { articulosPorComprar, asegurarDiasRestantes } from './compras.js';
-import { resumenEquipoDelMes } from './horarios.js';
+import { resumenEquipoDelMes, horaReloj } from './horarios.js';
 
 // Paleta de colores para proveedores
 const SUPPLIER_COLORS = ['#60D040','#9060e0','#fd7e14','#20c997','#e83e8c','#0dcaf0','#ffc107','#6610f2'];

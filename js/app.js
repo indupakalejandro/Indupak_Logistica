@@ -1,7 +1,7 @@
 import { initFirebase, getUserCollection, onSnapshot } from './firebase.js';
 import { state } from './state.js';
 import { cacheDOMElements, mostrarEsqueletoInicio, finalizarEsqueletoInicio, marcarBloqueListo, panelHandlers, setupUIListeners } from './ui.js';
-import { renderizarDashboard, startDashboardClock, renderMonthlyKilosChart, renderizarListaComprasDashboard, renderizarPersonalDashboard, actualizarBloquesDashboard } from './dashboard.js';
+import { renderizarDashboard, startDashboardClock, fetchWeatherDashboard, renderMonthlyKilosChart, renderizarListaComprasDashboard, renderizarPersonalDashboard, actualizarBloquesDashboard } from './dashboard.js';
 import { renderizarTablaInventario, verificarStockBajo, actualizarDropdownProveedores, actualizarDropdownCategorias, actualizarDropdownUnidadesMedida } from './inventario.js';
 import { renderizarPanelProveedores, actualizarDropdownRoles, setupProviderCardListeners } from './proveedores.js';
 import { renderizarPanelComisionistas, renderLocalidadesCheckboxes } from './comisionistas.js';
@@ -384,6 +384,12 @@ initFirebase(function onAuthReady() {
     alIngresar: () => {
         ocultarIngreso();
         aplicarPermisos();
+        // La hora y el clima de la barra son para todos, aunque el rol no vea el Inicio.
+        startDashboardClock();
+        if (!window._weatherFetched) {
+            window._weatherFetched = true;
+            fetchWeatherDashboard();
+        }
         escucharPermisos();
         escucharUsuarios();
     }

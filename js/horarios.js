@@ -122,6 +122,21 @@ function formatearMinutos(min) {
     return resto ? `${Math.floor(total / 60)} h ${resto} min` : `${Math.floor(total / 60)} h`;
 }
 
+// Las horas se guardan con decimales (7.67) pero se muestran en formato reloj: 7:40.
+export function horaReloj(horas) {
+    const totalMin = Math.round(parseCantidad(horas) * 60);
+    return `${Math.floor(totalMin / 60)}:${String(totalMin % 60).padStart(2, '0')}`;
+}
+const horasTexto = horas => `${horaReloj(horas)} h`;
+
+// Acepta "7:40", "7.5" o "7,5" y devuelve horas con decimales para guardar.
+function leerHoraReloj(texto) {
+    const valor = String(texto || '').trim();
+    const reloj = valor.match(/^(\d{1,3}):(\d{1,2})$/);
+    if (reloj) return Number((Number(reloj[1]) + Math.min(59, Number(reloj[2])) / 60).toFixed(4));
+    return parseCantidad(valor);
+}
+
 // ---- Turnos ----
 // Cada turno "es dueño" del tiempo que va desde un rato antes de su entrada hasta ese mismo rato antes del turno siguiente.
 // Antes de la hora de entrada es a horario; dentro de la tolerancia, en tolerancia; después ya es tarde.
@@ -552,7 +567,7 @@ function renderizarEnPlanta(jornada) {
             : `<span class="hor-salida hor-descanso hor-salida-abierta"><i class="bi bi-cup-hot"></i>En descanso desde las ${escapeHtml(d.inicio)}</span>`));
         if (reg.salidaMarcada) {
             const extras = parseCantidad(reg.horasExtras);
-            lineas.push(`<span class="hor-salida hor-retirado"><i class="bi bi-door-closed"></i>Salió ${escapeHtml(reg.salidaMarcada)} · ${formatCantidad(reg.horasTrabajadas, 2)} hs${extras > 0 ? ` + ${formatCantidad(extras, 2)} hs extra` : ''}</span>`);
+            lineas.push(`<span class="hor-salida hor-retirado"><i class="bi bi-door-closed"></i>Salió ${escapeHtml(reg.salidaMarcada)} · ${horasTexto(reg.horasTrabajadas)}${extras > 0 ? ` + ${horasTexto(extras)} extra` : ''}</span>`);
         }
 
         return `
@@ -613,7 +628,7 @@ function mensajeMarca(nombre, accion, hora, datos) {
         return `<strong>${escapeHtml(nombre)}</strong> volvió del descanso (${formatearMinutos(modulo(aMinutos(ultimo.fin) - aMinutos(ultimo.inicio), 1440))}).`;
     }
     const extras = parseCantidad(datos.horasExtras);
-    return `<strong>${escapeHtml(nombre)}</strong> salió a las ${hora}: ${formatCantidad(datos.horasTrabajadas, 2)} hs${extras > 0 ? ` + ${formatCantidad(extras, 2)} hs extra` : ''}.`;
+    return `<strong>${escapeHtml(nombre)}</strong> salió a las ${hora}: ${horasTexto(datos.horasTrabajadas)}${extras > 0 ? ` + ${horasTexto(extras)} extra` : ''}.`;
 }
 
 window.horariosMarcar = async function(asistenciaId) {
@@ -931,6 +946,19 @@ function operariosParaReporte() {
     return ordenarPorNombre([...state.operariosData, ...eliminados.values()]);
 }
 
+// El espacio del nombre mide lo que el nombre más largo: así la flecha de la derecha no se mueve al cambiar.
+let lienzoMedicion = null;
+function fijarAnchoDelNombre(operarios) {
+    const h4 = document.getElementById('horarios-reporte-nombre-operario');
+    if (!h4 || !operarios.length) return;
+    lienzoMedicion = lienzoMedicion || document.createElement('canvas');
+    const ctx = lienzoMedicion.getContext('2d');
+    const estilo = getComputedStyle(h4);
+    ctx.font = `${estilo.fontWeight} ${estilo.fontSize} ${estilo.fontFamily}`;
+    const ancho = Math.max(...operarios.map(op => ctx.measureText(String(op.nombre || '')).width));
+    h4.style.minWidth = `${Math.ceil(ancho) + 2}px`;
+}
+
 export function renderizarReportesOperario() {
     const select = document.getElementById('horarios-reporte-operario-select');
     if (!select) return;
@@ -946,6 +974,7 @@ export function renderizarReportesOperario() {
             return `<option value="${op.id}">${escapeHtml(op.nombre)}${op.puesto ? ` · ${escapeHtml(op.puesto)}` : ''}${extra}</option>`;
         }).join('')
         : '<option value="">No hay operarios cargados</option>';
+    fijarAnchoDelNombre(operarios);
     select.value = state.horariosReporteOperarioId;
 
     actualizarRangoFechasReporte();
@@ -987,7 +1016,7 @@ function actualizarRangoFechasReporte() {
     if (inputDesde) inputDesde.value = desde;
     if (inputHasta) inputHasta.value = hasta;
     if (selectRango) selectRango.value = preset;
-    if (contCustom) contCustom.style.display = preset === 'personalizado' ? 'block' : 'none';
+    if (contCustom) contCustom.style.display = preset === 'personalizado' ? 'flex' : 'none';
 }
 
 window.horariosCambiarPresetRangoReporte = function(preset) {
@@ -997,6 +1026,10 @@ window.horariosCambiarPresetRangoReporte = function(preset) {
 };
 
 window.horariosCambiarOperarioReporte = function(operarioId) {
+    const operarios = operariosParaReporte();
+    const desde = operarios.findIndex(op => op.id === state.horariosReporteOperarioId);
+    const hasta = operarios.findIndex(op => op.id === operarioId);
+    direccionCambioOperario = hasta >= desde ? 1 : -1;
     state.horariosReporteOperarioId = operarioId;
     actualizarVistaReporteSeleccionado();
 };
@@ -1005,6 +1038,7 @@ window.horariosMoverOperarioReporte = function(delta) {
     const operarios = operariosParaReporte();
     if (operarios.length === 0) return;
     const actual = operarios.findIndex(op => op.id === state.horariosReporteOperarioId);
+    direccionCambioOperario = delta >= 0 ? 1 : -1;
     state.horariosReporteOperarioId = operarios[(actual + delta + operarios.length) % operarios.length].id;
     const select = document.getElementById('horarios-reporte-operario-select');
     if (select) select.value = state.horariosReporteOperarioId;
@@ -1017,8 +1051,86 @@ window.horariosCambiarFechasCustom = function() {
     actualizarVistaReporteSeleccionado();
 };
 
+// ---- Detalle día por día: se abre y se cierra; se recuerda cómo lo dejó cada uno ----
+const CLAVE_DETALLE_ABIERTO = 'horariosDetalleAbierto';
+function detalleAbierto() {
+    try { return localStorage.getItem(CLAVE_DETALLE_ABIERTO) === '1'; } catch (e) { return false; }
+}
+function abrirDetalle(abrir) {
+    const cuerpo = document.getElementById('horarios-detalle-cuerpo');
+    const boton = document.getElementById('horarios-detalle-alternar');
+    if (!cuerpo || !boton) return;
+    cuerpo.hidden = !abrir;
+    boton.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    document.getElementById('horarios-detalle-card')?.classList.toggle('abierto', abrir);
+    try { localStorage.setItem(CLAVE_DETALLE_ABIERTO, abrir ? '1' : '0'); } catch (e) { /* sin almacenamiento */ }
+}
+window.horariosAlternarDetalle = function() {
+    abrirDetalle(document.getElementById('horarios-detalle-cuerpo')?.hidden);
+};
+
+// ---- Torta del período: cuánto del tiempo en fábrica fue trabajo, descanso o salidas ----
+// En fábrica = de la llegada a la salida (la marcada o, si no se marcó, la del turno).
+function tiemposDelPeriodo(registros) {
+    const t = { fabrica: 0, descanso: 0, afuera: 0, dias: 0 };
+    registros.forEach(r => {
+        if (!esPresencia(r.estado) || !r.entrada || !r.salida) return;
+        const enFabrica = minutosDesdeEntrada(r.entrada, r.salida);
+        if (!enFabrica || enFabrica > LIMITE_JORNADA_MIN) return;
+        t.fabrica += enFabrica;
+        t.descanso += Math.min(enFabrica, minutosDescansoDe(r.entrada, descansosDe(r)));
+        t.afuera += Math.min(enFabrica, minutosFueraDe(r.entrada, salidasDe(r)));
+        t.dias++;
+    });
+    t.trabajo = Math.max(0, t.fabrica - t.descanso - t.afuera);
+    return t;
+}
+
+function renderizarTortaReporte(registros) {
+    const torta = document.getElementById('horarios-reporte-torta');
+    const leyenda = document.getElementById('horarios-torta-leyenda');
+    if (!torta || !leyenda) return;
+    const t = tiemposDelPeriodo(registros);
+    const reloj = min => horaReloj(min / 60);
+    const partes = [
+        { clave: 'trabajo', label: 'Trabajado', min: t.trabajo, color: 'var(--hor-presente)' },
+        { clave: 'descanso', label: 'Descanso', min: t.descanso, color: 'var(--hor-justificada)' },
+        { clave: 'afuera', label: 'Salidas', min: t.afuera, color: 'var(--hor-salida)' }
+    ];
+
+    escribirTexto('horarios-torta-total', `${reloj(t.fabrica)} h`);
+    if (!t.fabrica) {
+        torta.style.background = 'conic-gradient(var(--hor-linea) 0 100%)';
+        leyenda.innerHTML = '<li class="hor-torta-vacia">Sin días trabajados en el período.</li>';
+        torta.setAttribute('aria-label', 'Sin días trabajados en el período');
+        return;
+    }
+
+    let acumulado = 0;
+    const tramos = partes.filter(p => p.min > 0).map(p => {
+        const desde = acumulado;
+        acumulado += (p.min / t.fabrica) * 100;
+        return `${p.color} ${desde.toFixed(2)}% ${acumulado.toFixed(2)}%`;
+    });
+    torta.style.background = `conic-gradient(${tramos.join(', ')})`;
+    torta.setAttribute('aria-label', `En fábrica ${reloj(t.fabrica)} horas: ${partes.map(p => `${p.label} ${reloj(p.min)}`).join(', ')}`);
+
+    leyenda.innerHTML = partes
+        .filter(p => p.min > 0 || p.clave !== 'afuera')
+        .map(p => `
+            <li style="--color:${p.color}">
+                <span class="hor-torta-punto"></span>
+                <span>${p.label}</span>
+                <strong>${reloj(p.min)} h</strong>
+                <small>${formatCantidad((p.min / t.fabrica) * 100, 0)}%</small>
+            </li>`).join('')
+        + `<li class="hor-torta-total"><span></span><span>En fábrica · ${t.dias} día(s)</span><strong>${reloj(t.fabrica)} h</strong><small>~${reloj(t.fabrica / t.dias)} por día</small></li>`;
+}
+
 window.horariosFiltrarReporte = function(filtro) {
     filtroReporte = filtroReporte === filtro ? '' : filtro;
+    // Al filtrar con una tarjeta se abre el detalle, que es donde se ve el resultado.
+    if (filtroReporte) abrirDetalle(true);
     actualizarVistaReporteSeleccionado();
 };
 
@@ -1075,19 +1187,61 @@ function actualizarVistaReporteSeleccionado() {
     renderizarPerfilReporte(op, resumen);
     renderizarKpisReporte(resumen);
     renderizarCalendario(registros, desde, hasta);
+    renderizarTortaReporte(registros);
     renderizarHistorialReporte(registros);
+}
+
+// Al cambiar de operario, el nombre sale deslizándose y desvaneciéndose, y entra el siguiente desde el otro lado.
+let direccionCambioOperario = 1;
+let cambioOperarioEnCurso = 0;
+function cambiarConDeslizamiento(elementos, aplicar, direccion) {
+    const sinMovimiento = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (sinMovimiento || !elementos.every(el => el?.animate)) {
+        aplicar();
+        return;
+    }
+    const turno = ++cambioOperarioEnCurso;
+    const salida = elementos.map(el => el.animate(
+        [{ opacity: 1, transform: 'translateX(0)' }, { opacity: 0, transform: `translateX(${-direccion * 22}px)` }],
+        { duration: 150, easing: 'ease-in', fill: 'forwards' }
+    ));
+    // Si la animación no llega a terminar (pestaña en segundo plano), el cambio se aplica igual.
+    const terminoSalida = Promise.race([
+        Promise.all(salida.map(a => a.finished)).catch(() => {}),
+        new Promise(resolver => setTimeout(resolver, 300))
+    ]);
+    terminoSalida.then(() => {
+        if (turno !== cambioOperarioEnCurso) return; // llegó otro cambio: ese se encarga
+        aplicar();
+        elementos.forEach(el => {
+            el.getAnimations().forEach(a => a.cancel());
+            el.animate(
+                [{ opacity: 0, transform: `translateX(${direccion * 22}px)` }, { opacity: 1, transform: 'translateX(0)' }],
+                { duration: 240, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+            );
+        });
+    });
 }
 
 function renderizarPerfilReporte(op, resumen) {
     const dato = (etiqueta, valor) => valor ? `<span><small>${etiqueta}</small>${escapeHtml(valor)}</span>` : '';
-    document.getElementById('horarios-reporte-avatar').textContent = iniciales(op.nombre);
-    document.getElementById('horarios-reporte-nombre-operario').textContent = op.nombre;
-    document.getElementById('horarios-reporte-info-operario').innerHTML = [
-        dato('Puesto', op.puesto),
-        dato('DNI / Legajo', op.dni),
-        dato('Teléfono', op.telefono),
-        op.eliminado ? dato('Situación', 'Eliminado del personal') : op.activo === false ? dato('Situación', 'Inactivo') : ''
-    ].join('');
+    const avatar = document.getElementById('horarios-reporte-avatar');
+    const nombre = document.getElementById('horarios-reporte-nombre-operario');
+    const info = document.getElementById('horarios-reporte-info-operario');
+    const aplicar = () => {
+        avatar.textContent = iniciales(op.nombre);
+        nombre.textContent = op.nombre;
+        nombre.dataset.operarioId = op.id;
+        info.innerHTML = [
+            dato('Puesto', op.puesto),
+            dato('DNI / Legajo', op.dni),
+            dato('Teléfono', op.telefono),
+            op.eliminado ? dato('Situación', 'Eliminado del personal') : op.activo === false ? dato('Situación', 'Inactivo') : ''
+        ].join('');
+    };
+    const cambio = nombre.dataset.operarioId && nombre.dataset.operarioId !== op.id;
+    if (cambio) cambiarConDeslizamiento([avatar, nombre, info], aplicar, direccionCambioOperario);
+    else aplicar();
 
     document.getElementById('rep-kpi-porcentaje-asistencia').textContent = resumen.presentismo === null ? '—' : `${formatCantidad(resumen.presentismo, 1)}%`;
     document.getElementById('rep-presentismo-barra').style.width = `${resumen.presentismo || 0}%`;
@@ -1095,8 +1249,8 @@ function renderizarPerfilReporte(op, resumen) {
 
 function renderizarKpisReporte(r) {
     escribirTexto('rep-kpi-dias-trabajados', r.trabajados);
-    escribirTexto('rep-kpi-horas-normales', `${formatCantidad(r.horasNormales, 2)} hs`);
-    escribirTexto('rep-kpi-horas-extras', `${formatCantidad(r.horasExtras, 2)} hs`);
+    escribirTexto('rep-kpi-horas-normales', horasTexto(r.horasNormales));
+    escribirTexto('rep-kpi-horas-extras', horasTexto(r.horasExtras));
     escribirTexto('rep-kpi-tolerancias', r.tolerancias);
     escribirTexto('rep-kpi-tardes', r.tardes);
     escribirTexto('rep-kpi-tardes-detalle', r.minutosTarde > 0 ? `${formatearMinutos(r.minutosTarde)} en total` : 'Sin demoras');
@@ -1218,6 +1372,8 @@ function renderizarHistorialReporte(registros) {
 
     const visibles = filtro ? registros.filter(filtro.coincide) : registros;
     footer.textContent = `${visibles.length} de ${registros.length} día(s) cargados en el período.`;
+    escribirTexto('horarios-detalle-cuenta', filtro ? `(${visibles.length} de ${registros.length})` : `(${registros.length} día${registros.length === 1 ? '' : 's'})`);
+    abrirDetalle(filtro ? true : detalleAbierto());
 
     if (visibles.length === 0) {
         tbody.innerHTML = `<tr><td colspan="10" class="hor-vacio">${registros.length ? 'No hay días con este filtro.' : 'Sin registros en el período seleccionado.'}</td></tr>`;
@@ -1235,8 +1391,8 @@ function renderizarHistorialReporte(registros) {
                 <td data-label="Turno">${escapeHtml(turnoDeRegistro(r)) || '—'}</td>
                 <td data-label="Estado"><span class="badge badge-asistencia-${info.css}"><i class="bi ${info.icon} me-1"></i>${info.label}</span></td>
                 <td data-label="Horario">${htmlHorario(r)}</td>
-                <td data-label="Horas" class="text-end">${formatCantidad(r.horasTrabajadas, 2)} hs</td>
-                <td data-label="Extras" class="text-end">${extras > 0 ? `<span class="badge badge-extra-horas">+${formatCantidad(extras, 2)} hs</span>` : '—'}</td>
+                <td data-label="Horas" class="text-end">${horasTexto(r.horasTrabajadas)}</td>
+                <td data-label="Extras" class="text-end">${extras > 0 ? `<span class="badge badge-extra-horas">+${horasTexto(extras)}</span>` : '—'}</td>
                 <td data-label="Tardanza" class="text-center">${tarde > 0 ? `<span class="badge badge-asistencia-tarde">${formatearMinutos(tarde)}</span>` : tolerancia > 0 ? `<span class="badge badge-asistencia-tolerancia">${formatearMinutos(tolerancia)}</span>` : '—'}</td>
                 <td data-label="Descanso" class="text-center">${htmlMinutosDescanso(r)}</td>
                 <td data-label="Observaciones">${r.observaciones || r.motivo || !salidasDe(r).length ? `<small>${escapeHtml(r.observaciones || r.motivo || '—')}</small>` : ''}${htmlSalidas(salidasDe(r))}</td>
@@ -1278,8 +1434,8 @@ window.horariosExportarCSV = function() {
             celda(ESTADOS[r.estado]?.label || r.estado),
             celda(r.entrada),
             celda(r.salida),
-            numero(r.horasTrabajadas),
-            numero(r.horasExtras),
+            celda(horaReloj(r.horasTrabajadas)),
+            celda(horaReloj(r.horasExtras)),
             numero(r.minutosTarde),
             celda(textoDescansos(r)),
             celda(salidasDe(r).map(s => textoSalida(s)).join(' | ')),
@@ -1334,8 +1490,8 @@ window.horariosImprimirReporte = function() {
         </div>
         <div class="hor-print-kpis">
             ${kpi(r.trabajados, 'Días trabajados')}
-            ${kpi(`${formatCantidad(r.horasNormales, 2)} hs`, 'Horas normales')}
-            ${kpi(`${formatCantidad(r.horasExtras, 2)} hs`, 'Horas extras')}
+            ${kpi(horasTexto(r.horasNormales), 'Horas normales')}
+            ${kpi(horasTexto(r.horasExtras), 'Horas extras')}
             ${kpi(r.tolerancias, 'En tolerancia')}
             ${kpi(`${r.tardes} (${formatearMinutos(r.minutosTarde)})`, 'Llegadas tarde')}
             ${kpi(r.justificadas, 'Faltas justif.')}
@@ -1351,8 +1507,8 @@ window.horariosImprimirReporte = function() {
                     <td>${escapeHtml(turnoDeRegistro(reg)) || '—'}</td>
                     <td>${ESTADOS[reg.estado]?.label || escapeHtml(reg.estado)}</td>
                     <td>${reg.entrada && reg.salida ? `${reg.entrada} a ${reg.salida}` : '—'}</td>
-                    <td>${formatCantidad(reg.horasTrabajadas, 2)}</td>
-                    <td>${parseCantidad(reg.horasExtras) > 0 ? `+${formatCantidad(reg.horasExtras, 2)}` : '—'}</td>
+                    <td>${horaReloj(reg.horasTrabajadas)}</td>
+                    <td>${parseCantidad(reg.horasExtras) > 0 ? `+${horaReloj(reg.horasExtras)}` : '—'}</td>
                     <td>${parseCantidad(reg.minutosTarde) > 0 ? formatearMinutos(parseCantidad(reg.minutosTarde)) : '—'}</td>
                     <td>${escapeHtml([...salidasDe(reg).map(s => textoSalida(s)), reg.observaciones || reg.motivo].filter(Boolean).join(' · ') || '—')}</td>
                 </tr>`).join('') || '<tr><td colspan="8">Sin registros en el período.</td></tr>'}
@@ -1611,12 +1767,12 @@ function recalcularHorasModal() {
     const { normales, extras } = calcularHoras(entrada, salida);
     const fuera = minutosFueraDe(entrada, leerSalidasModal().filter(s => s.salida && s.reingreso));
     const descanso = configHorario.descuentaDescanso ? minutosDescansoDe(entrada, leerDescansoModal()) : 0;
-    document.getElementById('edit-asistencia-horas').value = formatCantidad(Math.max(0, normales - (fuera + descanso) / 60));
+    document.getElementById('edit-asistencia-horas').value = horaReloj(Math.max(0, normales - (fuera + descanso) / 60));
 
     // Respeta un valor cargado a mano: solo pisa las extras si seguían siendo el cálculo automático anterior.
     const inputExtras = document.getElementById('edit-asistencia-extras');
-    const actual = parseCantidad(inputExtras.value);
-    if (actual === 0 || actual === parseCantidad(inputExtras.dataset.auto)) inputExtras.value = formatCantidad(extras);
+    const actual = leerHoraReloj(inputExtras.value);
+    if (actual === 0 || actual === parseCantidad(inputExtras.dataset.auto)) inputExtras.value = horaReloj(extras);
     inputExtras.dataset.auto = extras;
 }
 
@@ -1628,9 +1784,9 @@ function completarModalAsistencia({ id, nombre, reg, fecha, permiteEliminar }) {
     asignar('estado', reg?.estado || 'presente');
     asignar('entrada', reg?.entrada || '');
     asignar('salida', reg?.salida || '');
-    asignar('horas', formatCantidad(reg?.horasTrabajadas));
+    asignar('horas', horaReloj(reg?.horasTrabajadas));
     asignar('tarde', parseCantidad(reg?.minutosTarde));
-    asignar('extras', formatCantidad(reg?.horasExtras));
+    asignar('extras', horaReloj(reg?.horasExtras));
     asignar('obs', reg?.observaciones || reg?.motivo || '');
     const descanso = descansosDe(reg)[0];
     asignar('descanso-inicio', descanso?.inicio || '');
@@ -1750,10 +1906,10 @@ window.horariosGuardarEdicionAsistencia = async function() {
         turno: esPresencia(estado) ? turnoParaHora(entrada)?.nombre || '' : '',
         entrada,
         salida: leer('salida'),
-        horasTrabajadas: parseCantidad(leer('horas')),
+        horasTrabajadas: leerHoraReloj(leer('horas')),
         minutosTarde: parseCantidad(leer('tarde')),
         minutosTolerancia: estado === 'tolerancia' ? turnoParaHora(entrada)?.minutosTolerancia || 0 : 0,
-        horasExtras: parseCantidad(leer('extras')),
+        horasExtras: leerHoraReloj(leer('extras')),
         salidas,
         descansos,
         salidaMarcada,

@@ -644,6 +644,17 @@ window.mostrarPanel = function(panelId, event) {
     }
 }
 
+function actualizarTextoTema() {
+    const texto = document.getElementById('menu-hora-tema-texto');
+    if (texto) texto.textContent = document.body.classList.contains('light-mode') ? 'Tema oscuro' : 'Tema claro';
+}
+
+window.alternarTema = function() {
+    const claro = document.body.classList.toggle('light-mode');
+    try { localStorage.setItem('theme', claro ? 'light' : 'dark'); } catch (e) { /* sin almacenamiento */ }
+    actualizarTextoTema();
+};
+
 export function setupUIListeners() {
     // Corner buttons (theme toggle + config)
     const configToggleEl = document.getElementById('configToggle');
@@ -670,20 +681,14 @@ export function setupUIListeners() {
     if (configToggleEl) configToggleEl.addEventListener('mouseleave', hideThemeToggle);
 
     if (state.elements.themeToggle) {
-        state.elements.themeToggle.addEventListener('click', () => {
-            document.body.classList.toggle('light-mode');
-            const isLightMode = document.body.classList.contains('light-mode');
-            localStorage.setItem('theme', isLightMode ? 'light' : 'dark');
-        });
+        state.elements.themeToggle.addEventListener('click', () => window.alternarTema());
     }
 
     // Apply saved theme on load
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'light') {
-        document.body.classList.add('light-mode');
-    } else {
-        document.body.classList.remove('light-mode');
-    }
+    let savedTheme = null;
+    try { savedTheme = localStorage.getItem('theme'); } catch (e) { /* sin almacenamiento */ }
+    document.body.classList.toggle('light-mode', savedTheme === 'light');
+    actualizarTextoTema();
 
     // Search input event listener
     if (state.elements.buscador) {

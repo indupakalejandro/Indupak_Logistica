@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import {
-    getUserCollection, doc, updateDoc, setDoc, onSnapshot,
+    getUserCollection, doc, updateDoc, setDoc, deleteDoc, onSnapshot,
     ingresar, cerrarSesion, cambiarMiContrasena, crearUsuario, crearPrimerAdministrador, usuarioValido,
     guardarClaveObligatoria, CLAVE_INICIAL
 } from './firebase.js';
@@ -58,23 +58,32 @@ const PERMISOS_POR_DEFECTO = {
     rrhh: ['dashboard', 'horarios', 'horarios-gestion'],
     operario: ['dashboard', 'insumos', 'faltantes', 'bobinas', 'termos', 'control', 'horarios']
 };
-let permisosGuardados = null;
+// Los últimos permisos conocidos se recuerdan en el navegador: así, al entrar, cada rol ve desde el
+// primer momento su sección (y su esqueleto) sin esperar a que lleguen de la base.
+const CLAVE_PERMISOS_LOCAL = 'permisosRoles';
+let permisosGuardados = (() => {
+    try { return JSON.parse(localStorage.getItem(CLAVE_PERMISOS_LOCAL) || 'null'); } catch (e) { return null; }
+})();
 
 // Pasa la lista de secciones habilitadas a la forma que usan los permisos de cada rol.
 function aplicarListaARol(rol, lista) {
     ROLES[rol].paneles = lista.filter(id => id !== 'horarios-gestion');
     ROLES[rol].pestanasHorario = lista.includes('horarios-gestion') ? null : ['diario'];
 }
-Object.entries(PERMISOS_POR_DEFECTO).forEach(([rol, lista]) => aplicarListaARol(rol, lista));
-
 const listaDeRol = rol => (permisosGuardados?.[rol] && Array.isArray(permisosGuardados[rol])) ? permisosGuardados[rol] : PERMISOS_POR_DEFECTO[rol];
+ROLES_EDITABLES.forEach(rol => aplicarListaARol(rol, listaDeRol(rol)));
 
 let escuchandoPermisos = false;
 export function escucharPermisos() {
     if (escuchandoPermisos) return;
     escuchandoPermisos = true;
     onSnapshot(getUserCollection('configuracion'), snapshot => {
-        permisosGuardados = snapshot.docs.find(d => d.id === 'permisos')?.data() || null;
+        const datos = snapshot.docs.find(d => d.id === 'permisos')?.data() || null;
+        permisosGuardados = datos ? { rrhh: datos.rrhh, operario: datos.operario } : null;
+        try {
+            if (permisosGuardados) localStorage.setItem(CLAVE_PERMISOS_LOCAL, JSON.stringify(permisosGuardados));
+            else localStorage.removeItem(CLAVE_PERMISOS_LOCAL);
+        } catch (e) { /* sin almacenamiento: se usan los de la base al llegar */ }
         ROLES_EDITABLES.forEach(rol => aplicarListaARol(rol, listaDeRol(rol)));
         if (state.usuario) aplicarPermisos();
         renderizarEditorPermisos();
@@ -182,9 +191,12 @@ export function aplicarPermisos() {
     document.getElementById('usuario-menu-rol').textContent = `${state.usuario.usuario} · ${rol.label}`;
     document.getElementById('usuario-menu').hidden = false;
 
-    if (state.currentActivePanel && !window.puedeVerPanel(state.currentActivePanel)) {
+    // Si el rol no ve la sección actual (o el Inicio, que es lo primero que se muestra), va a su primera sección.
+    // Así, mientras carga, ve el esqueleto de su propia sección y no un Inicio vacío.
+    if (!window.puedeVerPanel(state.currentActivePanel || 'dashboard')) {
         window.mostrarPanel(window.panelInicialPermitido());
     }
+    document.getElementById('menu-hora-configuracion')?.classList.toggle('sin-permiso', !window.puedeVerPanel('configuracion'));
 }
 
 // ---- Pantalla de ingreso ----
@@ -280,7 +292,7 @@ function mensajeDeError(error) {
     if (/invalid-credential|wrong-password|user-not-found|invalid-email/.test(codigo)) return 'Usuario o contraseña incorrectos.';
     if (/too-many-requests/.test(codigo)) return 'Demasiados intentos. Esperá unos minutos y volvé a probar.';
     if (/network/.test(codigo)) return 'Sin conexión. Revisá internet y volvé a intentar.';
-    if (/email-already-in-use/.test(codigo)) return 'Ese usuario ya existe.';
+    if (/email-already-in-use/.test(codigo)) return 'Ese nombre de usuario ya se usó antes (aunque se haya eliminado). Elegí otro, por ejemplo agregándole un número.';
     if (/weak-password/.test(codigo)) return 'La contraseña tiene que tener al menos 6 caracteres.';
     if (/operation-not-allowed/.test(codigo)) return 'El ingreso con usuario y contraseña no está habilitado en Firebase todavía.';
     if (/permission-denied/.test(codigo)) return 'Ya existe un administrador. Pedile que te cree un usuario.';
@@ -400,8 +412,11 @@ window.accesosRenderizarUsuarios = function() {
                 <td class="text-center">
                     <button type="button" class="hor-estado-operario ${activo ? 'activo' : ''}" ${esYo ? 'disabled title="No podés desactivarte"' : 'title="Clic para cambiar"'} onclick="accesosAlternarActivo('${u.id}')">${activo ? 'Activo' : 'Desactivado'}</button>
                 </td>
+                <td class="text-center">
+                    ${esYo ? '' : `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" title="Eliminar usuario" aria-label="Eliminar a ${escapeHtml(u.usuario)}" onclick="accesosEliminarUsuario('${u.id}')"><i class="bi bi-trash-fill"></i></button>`}
+                </td>
             </tr>`;
-    }).join('') : '<tr><td colspan="4" class="text-center text-muted">Sin usuarios.</td></tr>';
+    }).join('') : '<tr><td colspan="5" class="text-center text-muted">Sin usuarios.</td></tr>';
 };
 
 let creandoUsuario = false;
@@ -453,6 +468,25 @@ window.accesosCambiarRol = async function(id, rol) {
         showAlert('No se pudo cambiar el rol.', 'danger');
         window.accesosRenderizarUsuarios();
     }
+};
+
+// Borra el perfil: sin perfil, esa cuenta ya no puede entrar a la web. (La cuenta de Firebase queda
+// guardada sin acceso; desde el navegador no se puede borrar la de otra persona.)
+window.accesosEliminarUsuario = function(id) {
+    const u = usuariosData.find(x => x.id === id);
+    if (!u || id === state.usuario?.uid) return;
+    showConfirm(`¿Eliminar al usuario <strong>${escapeHtml(u.nombre || u.usuario)}</strong> (${escapeHtml(u.usuario)})?<br><small>No va a poder entrar más. Esto no se puede deshacer; si solo es por un tiempo, conviene Desactivarlo.</small>`, async ok => {
+        if (!ok) return;
+        try {
+            await deleteDoc(doc(getUserCollection('usuarios'), id));
+            showNotification(`Usuario ${escapeHtml(u.usuario)} eliminado.`, 'info');
+        } catch (error) {
+            console.error('Error eliminando usuario:', error);
+            showAlert(/permission-denied/.test(error?.code || '')
+                ? 'Firebase no permitió eliminarlo: hay que publicar las reglas nuevas (firestore.rules).'
+                : 'No se pudo eliminar el usuario.', 'danger');
+        }
+    });
 };
 
 window.accesosAlternarActivo = async function(id) {

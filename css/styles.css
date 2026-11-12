@@ -1048,7 +1048,7 @@
             box-shadow: 0 3px 12px var(--shadow-color);
         }
         #nav-time-widget .nw-sep { opacity: 0.35; }
-        @media (max-width: 991px) { #nav-time-widget { display: none; } }
+        @media (max-width: 767.98px) { #nav-time-widget { display: none; } }
 
         /* Chart legend */
         .chart-legend {
@@ -2350,3 +2350,218 @@ body.sin-sesion .usuario-menu { display: none !important; }
     .usuario-chip span { display: none; }
     .usuario-chip { padding: 0 0.6rem; }
 }
+/* ══════════ MENÚS AL PASAR EL MOUSE: usuario (izquierda) y hora (derecha) ══════════ */
+.menu-al-pasar { cursor: default; }
+.menu-flotante {
+    position: absolute;
+    top: 100%;
+    min-width: 12rem;
+    padding: 0.35rem;
+    margin-top: 0.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    border-radius: var(--radius-g2-md);
+    border: 1px solid var(--vidrio-borde);
+    background: linear-gradient(180deg, var(--vidrio-reflejo), rgba(255, 255, 255, 0.03)), var(--dropdown-bg);
+    backdrop-filter: blur(16px) saturate(1.3);
+    -webkit-backdrop-filter: blur(16px) saturate(1.3);
+    box-shadow: inset 0 1px 0 var(--vidrio-brillo), 0 14px 34px var(--shadow-color);
+    opacity: 0;
+    visibility: hidden;
+    translate: 0 -6px;
+    transition: opacity 0.2s ease, translate 0.25s var(--suave), visibility 0s 0.25s;
+    z-index: 1040;
+    white-space: nowrap;
+}
+.menu-flotante-derecha { right: 0; }
+/* Puente invisible entre el botón y el menú, para no perder el hover al bajar el mouse */
+.menu-flotante::before { content: ''; position: absolute; left: 0; right: 0; top: -0.6rem; height: 0.6rem; }
+.menu-al-pasar:hover > .menu-flotante,
+.menu-al-pasar:focus-within > .menu-flotante {
+    opacity: 1;
+    visibility: visible;
+    translate: 0 0;
+    transition: opacity 0.2s ease, translate 0.25s var(--suave), visibility 0s;
+}
+.menu-flotante-item {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    width: 100%;
+    padding: 0.45rem 0.7rem;
+    border: 0;
+    border-radius: var(--radius-g2-sm);
+    background: transparent;
+    color: var(--dropdown-item-text);
+    font-size: 0.85rem;
+    text-align: left;
+    cursor: pointer;
+}
+.menu-flotante-item:hover,
+.menu-flotante-item:focus-visible { background: var(--dropdown-item-hover-bg); outline: none; }
+.menu-flotante-item i { width: 1rem; text-align: center; opacity: 0.85; }
+#nav-time-widget:hover { box-shadow: inset 0 1px 1px var(--vidrio-brillo), 0 14px 34px var(--shadow-color), 0 0 0 1px var(--vidrio-borde); }
+
+/* Menú del usuario: se abre al pasar el mouse (y con clic en pantallas táctiles) */
+.usuario-menu .dropdown-menu {
+    display: block;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 0.4rem;
+    opacity: 0;
+    visibility: hidden;
+    translate: 0 -6px;
+    transition: opacity 0.2s ease, translate 0.25s var(--suave), visibility 0s 0.25s;
+    border-radius: var(--radius-g2-md);
+    border: 1px solid var(--vidrio-borde);
+    background: linear-gradient(180deg, var(--vidrio-reflejo), rgba(255, 255, 255, 0.03)), var(--dropdown-bg);
+    backdrop-filter: blur(16px) saturate(1.3);
+    -webkit-backdrop-filter: blur(16px) saturate(1.3);
+    box-shadow: inset 0 1px 0 var(--vidrio-brillo), 0 14px 34px var(--shadow-color);
+}
+.usuario-menu .dropdown-menu::before { content: ''; position: absolute; left: 0; right: 0; top: -0.6rem; height: 0.6rem; }
+.usuario-menu:hover .dropdown-menu,
+.usuario-menu:focus-within .dropdown-menu,
+.usuario-menu .dropdown-menu.show {
+    opacity: 1;
+    visibility: visible;
+    translate: 0 0;
+    transition: opacity 0.2s ease, translate 0.25s var(--suave), visibility 0s;
+}
+.usuario-menu .dropdown-item, .usuario-menu .dropdown-item-text { color: var(--dropdown-item-text); }
+.usuario-menu .dropdown-item:hover { background: var(--dropdown-item-hover-bg); }
+
+/* Mientras carga, la sección que se esté mostrando (que no sea el Inicio) también tiene su esqueleto */
+body.app-cargando main[id^="panel-"]:not(#panel-dashboard) .card:not(.card .card)::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    border-radius: inherit;
+    pointer-events: none;
+    background-image: linear-gradient(90deg, var(--skel-base) 30%, var(--skel-brillo) 50%, var(--skel-base) 70%);
+    background-size: 200% 100%;
+    animation: skel-brillo 1.6s linear infinite;
+}
+body.app-cargando main[id^="panel-"]:not(#panel-dashboard) { pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+    body.app-cargando main[id^="panel-"]:not(#panel-dashboard) .card:not(.card .card)::after { animation-name: skel-pulso; }
+}
+/* ══════════ REPORTE POR OPERARIO: nombre-selector, período compacto, torta y detalle desplegable ══════════ */
+/* Arriba siempre a la misma altura, aunque falten datos del operario */
+.hor-perfil-cabecera { display: flex; align-items: flex-start; gap: 0.9rem; }
+.hor-perfil-cabecera .hor-perfil-info { min-height: 2.35rem; }
+.hor-perfil-cabecera .hor-perfil-datos { flex: 1 1 auto; }
+.hor-selector-operario { display: flex; align-items: center; gap: 0.15rem; margin-bottom: 0.3rem; min-width: 0; }
+.hor-selector-flecha {
+    flex: none;
+    width: 1.9rem;
+    height: 1.9rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--hor-suave);
+    cursor: pointer;
+}
+.hor-selector-flecha:hover { background: color-mix(in srgb, var(--text-color) 12%, transparent); color: var(--text-color); }
+.hor-selector-flecha:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 1px; }
+/* El select invisible queda encima del nombre: al tocarlo se abre la lista de operarios */
+.hor-selector-nombre { position: relative; display: inline-flex; align-items: center; gap: 0.4rem; min-width: 0; padding: 0.1rem 0.45rem; border-radius: var(--radius-g2-sm); }
+.hor-selector-nombre:hover { background: color-mix(in srgb, var(--text-color) 9%, transparent); }
+.hor-selector-nombre:focus-within { outline: 2px solid var(--accent-color); outline-offset: 1px; }
+.hor-selector-nombre h4 { margin: 0 !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.45rem; }
+.hor-selector-nombre > i { font-size: 0.8rem; color: var(--hor-suave); }
+.hor-selector-select { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; font-size: 1rem; }
+/* La lista de operarios con los colores del tema (antes salía texto oscuro sobre fondo oscuro) */
+.hor-selector-select { color-scheme: dark; }
+.hor-selector-select option { background-color: #2b1a4f; color: #f0f0f0; font-size: 0.95rem; font-weight: 500; }
+body.light-mode .hor-selector-select { color-scheme: light; }
+body.light-mode .hor-selector-select option { background-color: #ffffff; color: #333333; }
+.hor-perfil-cabecera .hor-perfil-info { padding-left: 2.2rem; }
+
+.hor-periodo {
+    flex: none;
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.3rem 0.2rem 0.65rem;
+    border: 1px solid var(--hor-linea);
+    border-radius: var(--radius-g2-pill);
+    color: var(--hor-suave);
+    font-size: 0.8rem;
+}
+.hor-periodo-select { -webkit-appearance: none; appearance: none; border: 0; background: transparent !important; background-image: none !important; box-shadow: none !important; color: var(--text-color); font-size: 0.8rem; font-weight: 600; cursor: pointer; padding: 0 1.1rem 0 0; height: auto; width: auto; }
+.hor-periodo::after { content: "\F282"; font-family: "bootstrap-icons"; font-size: 0.7rem; margin-left: -1rem; pointer-events: none; color: var(--hor-suave); }
+.hor-periodo-select:focus { outline: none; }
+.hor-periodo:focus-within { border-color: var(--accent-color); }
+.hor-periodo-select { color-scheme: dark; }
+.hor-periodo-select option { background-color: #2b1a4f; color: #f0f0f0; }
+body.light-mode .hor-periodo-select { color-scheme: light; }
+body.light-mode .hor-periodo-select option { background-color: #ffffff; color: #333333; }
+.hor-fechas-custom { display: flex; align-items: center; gap: 0.4rem; justify-content: flex-end; font-size: 0.8rem; color: var(--hor-suave); }
+.hor-fechas-custom input { max-width: 10rem; }
+
+/* Torta del período */
+.hor-perfil { align-items: center; }
+.hor-torta-bloque { flex: 1 1 320px; display: flex; align-items: center; gap: 1.25rem; min-width: 0; }
+.hor-torta {
+    flex: none;
+    position: relative;
+    width: 128px;
+    height: 128px;
+    border-radius: 50%;
+    background: conic-gradient(var(--hor-linea) 0 100%);
+    box-shadow: inset 0 0 0 1px var(--hor-linea);
+}
+.hor-torta-centro {
+    position: absolute;
+    inset: 20px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--card-bg);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: inset 0 1px 0 var(--vidrio-reflejo);
+    text-align: center;
+}
+.hor-torta-centro strong { font-size: 1.15rem; line-height: 1.1; color: var(--text-color); font-variant-numeric: tabular-nums; }
+.hor-torta-centro small { font-size: 0.68rem; color: var(--hor-suave); }
+/* Leyenda compacta: etiqueta, horas y porcentaje juntos, al lado de la torta */
+.hor-torta-leyenda { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 0.7rem auto auto auto; column-gap: 0.6rem; row-gap: 0.3rem; align-items: center; flex: 0 1 auto; min-width: 0; }
+.hor-torta-leyenda li { display: contents; font-size: 0.85rem; }
+.hor-torta-leyenda li > * { font-size: 0.85rem; }
+.hor-torta-leyenda strong { text-align: right; }
+.hor-torta-leyenda strong { font-variant-numeric: tabular-nums; }
+.hor-torta-leyenda small { text-align: right; color: var(--hor-suave); font-variant-numeric: tabular-nums; }
+.hor-torta-punto { width: 0.7rem; height: 0.7rem; border-radius: 3px; background: var(--color); }
+.hor-torta-leyenda .hor-torta-total > * { padding-top: 0.4rem; margin-top: 0.15rem; border-top: 1px solid var(--hor-linea); }
+.hor-torta-leyenda .hor-torta-total > span:nth-child(2) { color: var(--hor-suave); }
+.hor-torta-leyenda .hor-torta-total small { white-space: nowrap; }
+.hor-torta-vacia { display: block !important; grid-column: 1 / -1; color: var(--hor-suave); font-size: 0.85rem; }
+
+/* Detalle día por día desplegable */
+.hor-detalle-alternar { display: inline-flex; align-items: center; gap: 0.35rem; border: 0; background: transparent; color: var(--text-color); font-size: 0.95rem; font-weight: 700; padding: 0.15rem 0.25rem; border-radius: var(--radius-g2-xs); cursor: pointer; }
+.hor-detalle-alternar:hover { background: color-mix(in srgb, var(--text-color) 9%, transparent); }
+.hor-detalle-alternar:focus-visible { outline: 2px solid var(--accent-color); }
+.hor-detalle-flecha { transition: transform 0.25s var(--suave); }
+.hor-detalle-card.abierto .hor-detalle-flecha { transform: rotate(90deg); }
+.hor-detalle-card:not(.abierto) .card-header { border-bottom: 0; }
+
+@media (max-width: 575.98px) {
+    .hor-perfil-cabecera { flex-wrap: wrap; }
+    .hor-periodo { order: 3; margin-left: auto; }
+    .hor-perfil-cabecera .hor-perfil-info { padding-left: 0; }
+    .hor-selector-nombre h4 { font-size: 1.2rem; }
+    .hor-torta { width: 108px; height: 108px; }
+    .hor-torta-centro { inset: 16px; }
+}
+@media (max-width: 575.98px) { .hor-selector-nombre h4 { min-width: 0 !important; } }

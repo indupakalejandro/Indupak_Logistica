@@ -5,11 +5,12 @@ import { renderizarConfigHorario } from './horarios.js';
 const ordenarPorNombre = lista => [...lista].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'es'));
 
 window.switchConfiguracionTab = function(tab) {
-    ['insumos', 'contactos', 'horario', 'sistema'].forEach(nombre => {
+    ['insumos', 'contactos', 'horario', 'usuarios', 'sistema'].forEach(nombre => {
         document.getElementById(`tab-btn-config-${nombre}`).classList.toggle('active', nombre === tab);
         document.getElementById(`config-seccion-${nombre}`).style.display = nombre === tab ? '' : 'none';
     });
     if (tab === 'horario') renderizarConfigHorario();
+    if (tab === 'usuarios') window.accesosRenderizarUsuarios?.();
 };
 
 /**

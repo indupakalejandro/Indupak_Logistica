@@ -1,11 +1,8 @@
 import { state } from './state.js';
 import { getUserCollection, doc, updateDoc, addDoc, deleteDoc } from './firebase.js';
 import { formatCantidad, marcarBloqueListo } from './ui.js';
-import { obtenerPrevisionCompras } from './analisis.js';
+import { articulosPorComprar, asegurarDiasRestantes } from './compras.js';
 import { resumenEquipoDelMes } from './horarios.js';
-
-const DIAS_PREVISION = 90;
-let ultimaPrevision = 0;
 
 // Paleta de colores para proveedores
 const SUPPLIER_COLORS = ['#60D040','#9060e0','#fd7e14','#20c997','#e83e8c','#0dcaf0','#ffc107','#6610f2'];
@@ -97,31 +94,41 @@ export function renderizarPersonalDashboard() {
     ].join('');
 }
 
-async function renderizarPrevisionCompras() {
+function textoDias(a) {
+    if (a.cantidadActual <= 0) return { texto: 'Agotado', urgente: true };
+    const dias = a.dias?.diasRestantes;
+    if (dias === null || dias === undefined) return { texto: a.dias ? 'Sin estimación' : '…', urgente: false };
+    return { texto: dias === 0 ? 'Menos de 1 día' : `~${dias} días`, urgente: dias < 7 };
+}
+
+// Los mismos artículos de Insumos > Por Comprar, del que se agota primero al último.
+function renderizarPrevisionCompras() {
     const cuerpo = document.getElementById('dashboard-prevision-body');
     const pie = document.getElementById('dashboard-prevision-pie');
     if (!cuerpo || !state.dataLoadedFlags.inventario || !state.dataLoadedFlags.unitsOfMeasure) return;
 
-    const render = ++ultimaPrevision;
-    try {
-        const { articulos, sinDatos } = await obtenerPrevisionCompras(DIAS_PREVISION);
-        if (render !== ultimaPrevision) return;
+    const diasListos = asegurarDiasRestantes(() => {
+        if (state.currentActivePanel === 'dashboard') renderizarPrevisionCompras();
+    });
+    const orden = a => (a.cantidadActual <= 0 ? -1 : a.dias?.diasRestantes ?? Number.POSITIVE_INFINITY);
+    const articulos = articulosPorComprar().sort((a, b) => orden(a) - orden(b) || String(a.nombre).localeCompare(String(b.nombre), 'es'));
 
-        pie.textContent = sinDatos > 0 ? `${sinDatos} artículo(s) sin datos suficientes para estimar.` : '';
-        cuerpo.innerHTML = articulos.length === 0
-            ? '<div class="dash-vacio">Nada para comprar en los próximos 90 días.</div>'
-            : '<div class="dash-prevision-fila dash-prevision-encabezado"><span>Artículo</span><span>Stock</span><span>Duración</span><span>Comprar</span></div>' + articulos.map(a => `
+    pie.textContent = articulos.length
+        ? `${articulos.length} artículo(s) bajo el mínimo${diasListos ? '' : ' · calculando días…'}`
+        : '';
+    cuerpo.innerHTML = articulos.length === 0
+        ? '<div class="dash-vacio">No hay artículos por comprar.</div>'
+        : '<div class="dash-prevision-fila dash-prevision-encabezado"><span>Artículo</span><span>Stock</span><span>Quedan</span><span>Comprar</span></div>' + articulos.map(a => {
+            const dias = textoDias(a);
+            return `
                 <div class="dash-prevision-fila">
-                    <span class="dash-prevision-nombre" title="${escapeHtml(a.nombre)}">${escapeHtml(a.nombre)}</span>
-                    <span class="dash-prevision-stock">${formatCantidad(a.stock)}</span>
-                    <span class="dash-prevision-cuando${a.bajoMinimo ? ' bajo-minimo' : ''}"${a.bajoMinimo ? ' title="Ya está bajo el stock mínimo"' : ''}>${a.diasRestantes === 0 ? 'Queda menos de 1 día' : `Quedan ~${a.diasRestantes} días`}</span>
-                    <strong>${formatCantidad(a.cantidad)} ${escapeHtml(a.unidad)}</strong>
-                </div>`).join('');
-    } catch (e) {
-        console.error('Error calculando previsión de compras:', e);
-        if (render === ultimaPrevision) cuerpo.innerHTML = '<div class="dash-vacio">No se pudo calcular la previsión.</div>';
-    }
-    if (render === ultimaPrevision) marcarBloqueListo('prevision');
+                    <span class="dash-prevision-nombre" title="${escapeHtml(a.nombre)} · ${escapeHtml(a.proveedorNombre)}">${escapeHtml(a.nombre)}</span>
+                    <span class="dash-prevision-stock">${formatCantidad(a.cantidadActual)}</span>
+                    <span class="dash-prevision-cuando${dias.urgente ? ' bajo-minimo' : ''}">${dias.texto}</span>
+                    <strong>${formatCantidad(a.cantidadNecesaria)} ${escapeHtml(a.unidadNombre === 'N/A' ? '' : a.unidadNombre)}</strong>
+                </div>`;
+        }).join('');
+    marcarBloqueListo('prevision');
 }
 
 export function startDashboardClock() {

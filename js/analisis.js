@@ -13,6 +13,8 @@ const MIN_SALIDAS = 3;
 const MIN_DIAS_HISTORIA = 7;
 // Una salida y una entrada de igual cantidad dentro de este lapso son un error corregido, no consumo.
 const VENTANA_CORRECCION_MS = 15 * 60 * 1000;
+// Antes de esta fecha el stock no se ajustaba con regularidad: esos movimientos no reflejan el consumo real.
+const INICIO_DATOS_CONFIABLES = new Date(2026, 5, 1); // 1 de junio de 2026
 
 let ultimoRender = 0;
 let historialEnCurso = null;
@@ -59,7 +61,7 @@ function normalizarMovimientos(movimientos) {
                 cantidad: conStock ? Math.abs(nuevo - anterior) : parseCantidad(m.cantidad)
             };
         })
-        .filter(m => m.fecha && m.cantidad > 0)
+        .filter(m => m.fecha && m.fecha >= INICIO_DATOS_CONFIABLES && m.cantidad > 0)
         .sort((a, b) => a.fecha - b.fecha);
 }
 
@@ -201,6 +203,27 @@ export async function obtenerPrevisionCompras(dias) {
     return { articulos, sinDatos: metricas.filter(r => r.consumoDiario === null).length };
 }
 
+// Días que le quedan a cada artículo hasta llegar a 0, según su consumo. Clave: id del artículo.
+export async function obtenerDiasRestantes() {
+    const metricas = metricasDeInventario(await obtenerHistorial());
+    return new Map(metricas.map(r => [r.item.id, { diasRestantes: r.stock <= 0 ? 0 : r.diasRestantes, estado: r.estado, consumoDiario: r.consumoDiario }]));
+}
+
+// Para pintar sin esperar: devuelve el cálculo si el historial ya está en memoria, o null.
+export function diasRestantesEnCache() {
+    const cache = state._historialCache;
+    if (!cache || Date.now() - cache.ts >= CACHE_TTL) return null;
+    const metricas = metricasDeInventario(cache.data);
+    return new Map(metricas.map(r => [r.item.id, { diasRestantes: r.stock <= 0 ? 0 : r.diasRestantes, estado: r.estado, consumoDiario: r.consumoDiario }]));
+}
+
+// Mismo criterio de colores que el análisis.
+export function badgeDiasRestantes(dato, stock) {
+    if (stock <= 0) return '<span class="badge bg-danger">Agotado</span>';
+    if (!dato) return '<span class="text-muted">…</span>';
+    return badgeDias({ stock, estado: dato.estado, diasRestantes: dato.diasRestantes });
+}
+
 function resumenPie(resultados) {
     const conProyeccion = resultados.filter(r => r.diasRestantes !== null);
     const contar = condicion => resultados.filter(condicion).length;
@@ -214,6 +237,7 @@ function resumenPie(resultados) {
     if (criticos > 0) partes.push(`<span class="text-danger fw-bold">${criticos} crítico(s)</span>`);
     if (urgentes > 0) partes.push(`<span style="color:#fd7e14" class="fw-bold">${urgentes} urgente(s)</span>`);
     if (pocosDatos > 0) partes.push(`${pocosDatos} con pocos datos`);
+    partes.push('<small class="text-muted">Calculado con movimientos desde el 01/06/2026</small>');
     return partes.join(' · ');
 }
 

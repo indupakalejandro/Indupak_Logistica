@@ -567,6 +567,11 @@ function updateSearchFilterOptions(panelId) {
 window.mostrarPanel = function(panelId, event) {
     if (event && event.detail === 0) return;
 
+    // Cada rol ve solo sus secciones: si pide otra, va a la primera que tiene permitida.
+    if (typeof window.puedeVerPanel === 'function' && !window.puedeVerPanel(panelId)) {
+        panelId = window.panelInicialPermitido();
+    }
+
     state.currentActivePanel = panelId;
 
     document.getElementById('panel-dashboard').style.display = 'none';

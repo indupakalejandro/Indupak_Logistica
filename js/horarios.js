@@ -13,8 +13,11 @@ const CONFIG_HORARIO_POR_DEFECTO = {
     toleranciaMin: 0,
     // Hasta cuántos minutos antes de la entrada se considera que alguien ya viene para ese turno.
     anticipoMin: 60,
-    // Las horas extra se proponen en bloques de esta cantidad de minutos (siempre se pueden corregir a mano).
-    extrasFraccionMin: 30
+    // Las horas extra cuentan en bloques completos de esta cantidad de minutos: quedarse 20 min de más no suma.
+    extrasFraccionMin: 60,
+    // Una marca pasadas estas horas desde la entrada inicia el descanso; antes, es la salida.
+    descansoDesdeHs: 4,
+    descuentaDescanso: false
 };
 
 const ESTADOS = {
@@ -202,26 +205,78 @@ const minutosFueraDe = (entrada, salidas) => salidas
     .filter(s => s.salida && s.reingreso)
     .reduce((total, s) => total + minutosDesdeEntrada(entrada, s.reingreso) - minutosDesdeEntrada(entrada, s.salida), 0);
 
-// Hora en que termina el día si no hubiera salidas: la que se cargó o, si no, la del turno.
+// Hora en que termina el turno si nadie marca la salida: la que se cargó o, si no, la del turno.
 function salidaProgramadaDe(reg) {
     if (reg.salidaProgramada) return reg.salidaProgramada;
-    if (!salidaEnCurso(salidasDe(reg)) && reg.salida) return reg.salida;
+    if (!reg.salidaMarcada && !salidaEnCurso(salidasDe(reg)) && reg.salida) return reg.salida;
     return turnoParaHora(reg.entrada)?.salida || '';
 }
 
-function aplicarSalidas({ entrada, salidaProgramada, salidas }) {
+// ---- Descansos ----
+const descansosDe = reg => Array.isArray(reg?.descansos) ? reg.descansos : [];
+const descansoEnCurso = descansos => descansos.length > 0 && !descansos[descansos.length - 1].fin;
+const minutosDescansoDe = (entrada, descansos) => descansos
+    .filter(d => d.inicio && d.fin)
+    .reduce((total, d) => total + minutosDesdeEntrada(entrada, d.fin) - minutosDesdeEntrada(entrada, d.inicio), 0);
+
+/**
+ * Recalcula salida, horas normales y extras de un día con todo lo que se marcó.
+ * - Salida marcada: termina ahí y las extras salen de los bloques completos pasados del turno.
+ * - Sin salida marcada: se toma el turno completo (8 h menos la tardanza).
+ * - Se fue sin volver (novedad): termina en esa salida.
+ * - Salidas con reingreso y, si así se configuró, el descanso: se descuentan.
+ */
+function recalcularJornada({ entrada, salidaProgramada, salidas = [], descansos = [], salidaMarcada = '', horasExtras = 0 }) {
     const ordenadas = ordenarSalidas(entrada, salidas);
     const minutosFuera = minutosFueraDe(entrada, ordenadas);
-    const salida = salidaEnCurso(ordenadas) ? ordenadas[ordenadas.length - 1].salida : salidaProgramada;
-    const { normales } = calcularHoras(entrada, salida);
+    const minutosDescanso = minutosDescansoDe(entrada, descansos);
+    const seFue = salidaEnCurso(ordenadas);
+    const salida = seFue ? ordenadas[ordenadas.length - 1].salida : (salidaMarcada || salidaProgramada);
+    const { normales, extras } = calcularHoras(entrada, salida);
+    const descuento = minutosFuera + (configHorario.descuentaDescanso ? minutosDescanso : 0);
     return {
         salidas: ordenadas,
+        descansos,
         salida,
+        salidaMarcada,
         salidaProgramada,
         minutosFuera,
-        horasTrabajadas: Number(Math.max(0, normales - minutosFuera / 60).toFixed(2))
+        minutosDescanso,
+        horasTrabajadas: Number(Math.max(0, normales - descuento / 60).toFixed(2)),
+        horasExtras: salidaMarcada && !seFue ? extras : parseCantidad(horasExtras)
     };
 }
+
+function datosJornada(reg, cambios = {}) {
+    return recalcularJornada({
+        entrada: reg.entrada,
+        salidaProgramada: salidaProgramadaDe(reg),
+        salidas: salidasDe(reg),
+        descansos: descansosDe(reg),
+        salidaMarcada: reg.salidaMarcada || '',
+        horasExtras: reg.horasExtras,
+        ...cambios
+    });
+}
+
+// Qué hace la próxima marca de un operario: así funcionará con un lector de huella o tarjeta.
+// entrada → (pasadas N horas) descanso → fin del descanso → salida. Antes de N horas, la marca es la salida.
+function proximaMarca(reg, hora) {
+    if (!reg) return 'entrada';
+    if (!esPresencia(reg.estado) || !reg.entrada) return null;
+    if (reg.salidaMarcada || salidaEnCurso(salidasDe(reg))) return null;
+    const descansos = descansosDe(reg);
+    if (descansoEnCurso(descansos)) return 'fin_descanso';
+    const transcurrido = minutosDesdeEntrada(reg.entrada, hora);
+    if (!descansos.length && transcurrido >= configHorario.descansoDesdeHs * 60 && transcurrido <= LIMITE_JORNADA_MIN) return 'descanso';
+    return 'salida';
+}
+
+const ACCIONES_MARCA = {
+    descanso: { label: 'Descanso', icon: 'bi-cup-hot', css: 'btn-outline-info' },
+    fin_descanso: { label: 'Volvió del descanso', icon: 'bi-arrow-return-left', css: 'btn-info' },
+    salida: { label: 'Marcar salida', icon: 'bi-door-open', css: 'btn-outline-light' }
+};
 
 function textoSalida(s, enCurso = false) {
     const detalle = [MOTIVOS_SALIDA[s.motivo] || s.motivo, s.nota].filter(Boolean).join(' · ');
@@ -322,6 +377,8 @@ export function renderizarHorariosPanel() {
 }
 
 export function switchHorariosTab(tabName, render = true) {
+    // Un operario solo usa la planilla del día.
+    if (typeof window.pestanaHorarioPermitida === 'function' && !window.pestanaHorarioPermitida(tabName)) tabName = 'diario';
     state.activeHorariosTab = tabName;
 
     ['diario', 'reportes', 'personal'].forEach(nombre => {
@@ -435,10 +492,19 @@ function renderizarEnPlanta(jornada) {
     const visibles = ordenarPorNombre(mostrados
         .map(reg => ({ ...reg, nombre: reg.operarioNombre, puesto: reg.operarioPuesto }))
         .filter(reg => coincideBusqueda({ ...state.operariosData.find(o => o.id === reg.operarioId), ...reg })));
-    const afuera = mostrados.filter(reg => salidaEnCurso(salidasDe(reg))).length;
+    const situacion = reg => reg.salidaMarcada ? 'retirado'
+        : salidaEnCurso(salidasDe(reg)) ? 'afuera'
+        : descansoEnCurso(descansosDe(reg)) ? 'descanso' : 'adentro';
+    const cuenta = tipo => mostrados.filter(reg => situacion(reg) === tipo).length;
+    const resumen = [
+        `${cuenta('adentro')} adentro`,
+        cuenta('descanso') && `${cuenta('descanso')} en descanso`,
+        cuenta('afuera') && `${cuenta('afuera')} afuera`,
+        cuenta('retirado') && `${cuenta('retirado')} ya salieron`
+    ].filter(Boolean).join(' · ');
 
     escribirTexto('horarios-en-planta-titulo', enPlantaTodosLosTurnos ? 'Ingresaron hoy' : `En planta · Turno ${jornada.turno.nombre}`);
-    escribirTexto('horarios-en-planta-resumen', `${mostrados.length - afuera} adentro${afuera ? ` · ${afuera} afuera` : ''}`);
+    escribirTexto('horarios-en-planta-resumen', resumen);
     const alternar = document.getElementById('horarios-en-planta-alternar');
     alternar.style.display = otros ? '' : 'none';
     alternar.textContent = enPlantaTodosLosTurnos ? `Solo turno ${jornada.turno.nombre}` : `Ver también otros turnos (${otros})`;
@@ -448,14 +514,41 @@ function renderizarEnPlanta(jornada) {
         return;
     }
 
+    // Los que ya se fueron quedan al final.
+    const ordenSituacion = { descanso: 0, adentro: 0, afuera: 1, retirado: 2 };
+    visibles.sort((a, b) => ordenSituacion[situacion(a)] - ordenSituacion[situacion(b)]);
+
     lista.innerHTML = visibles.map(reg => {
         const salidas = salidasDe(reg);
-        const afuera = salidaEnCurso(salidas);
+        const descansos = descansosDe(reg);
+        const estadoActual = situacion(reg);
         const info = ESTADOS[reg.estado] || ESTADOS.sin_registrar;
         const turno = turnoDeRegistro(reg);
         const otroTurno = turno && turno !== jornada.turno.nombre ? ` · Turno ${escapeHtml(turno)}` : '';
+        const marca = ACCIONES_MARCA[proximaMarca(reg, jornada.hora)];
+
+        let botones = '';
+        if (estadoActual === 'afuera') {
+            botones = `<button type="button" class="btn btn-sm btn-primary hor-btn-novedad" onclick="horariosAbrirSalida('${reg.id}')"><i class="bi bi-box-arrow-in-right me-1"></i>Volvió</button>`;
+        } else if (estadoActual === 'retirado') {
+            botones = `<button type="button" class="btn btn-sm btn-outline-secondary hor-btn-novedad" title="Corregir el registro" onclick="horariosAbrirModalEditarAsistencia('${reg.id}')"><i class="bi bi-pencil"></i></button>`;
+        } else if (marca) {
+            botones = `
+                <button type="button" class="btn btn-sm ${marca.css} hor-btn-novedad" onclick="horariosMarcar('${reg.id}')"><i class="bi ${marca.icon} me-1"></i>${marca.label}</button>
+                ${estadoActual === 'adentro' ? `<button type="button" class="btn btn-sm btn-outline-warning hor-btn-novedad" title="Se va antes, con motivo" onclick="horariosAbrirSalida('${reg.id}')"><i class="bi bi-box-arrow-right"></i></button>` : ''}`;
+        }
+
+        const lineas = [];
+        descansos.forEach(d => lineas.push(d.fin
+            ? `<span class="hor-salida hor-descanso"><i class="bi bi-cup-hot"></i>Descanso ${escapeHtml(d.inicio)} a ${escapeHtml(d.fin)} (${formatearMinutos(minutosDesdeEntrada(reg.entrada, d.fin) - minutosDesdeEntrada(reg.entrada, d.inicio))})</span>`
+            : `<span class="hor-salida hor-descanso hor-salida-abierta"><i class="bi bi-cup-hot"></i>En descanso desde las ${escapeHtml(d.inicio)}</span>`));
+        if (reg.salidaMarcada) {
+            const extras = parseCantidad(reg.horasExtras);
+            lineas.push(`<span class="hor-salida hor-retirado"><i class="bi bi-door-closed"></i>Salió ${escapeHtml(reg.salidaMarcada)} · ${formatCantidad(reg.horasTrabajadas, 2)} hs${extras > 0 ? ` + ${formatCantidad(extras, 2)} hs extra` : ''}</span>`);
+        }
+
         return `
-            <article class="hor-en-planta${afuera ? ' hor-en-planta-afuera' : ''}">
+            <article class="hor-en-planta hor-en-planta-${estadoActual}">
                 <div class="hor-en-planta-fila">
                     <div class="hor-operario">
                         <span class="hor-avatar">${escapeHtml(iniciales(reg.operarioNombre))}</span>
@@ -464,14 +557,101 @@ function renderizarEnPlanta(jornada) {
                             <small>Entró ${escapeHtml(reg.entrada)} · <span class="hor-texto-${info.css}">${info.label}</span>${otroTurno}</small>
                         </div>
                     </div>
-                    <button type="button" class="btn btn-sm ${afuera ? 'btn-primary' : 'btn-outline-warning'} hor-btn-novedad" onclick="horariosAbrirSalida('${reg.id}')">
-                        <i class="bi ${afuera ? 'bi-box-arrow-in-right' : 'bi-box-arrow-right'} me-1"></i>${afuera ? 'Volvió' : 'Se va'}
-                    </button>
+                    <div class="hor-en-planta-botones">${botones}</div>
                 </div>
+                ${lineas.length ? `<div class="hor-salidas">${lineas.join('')}</div>` : ''}
                 ${htmlSalidas(salidas, true)}
             </article>`;
     }).join('');
 }
+
+// ---- Marcas: descanso, fin del descanso y salida ----
+const operariosMarcando = new Set();
+// Dos marcas seguidas dentro de este lapso son el mismo gesto (doble toque en el lector): se ignora la segunda.
+const MARCA_REPETIDA_MS = 2 * 60 * 1000;
+
+async function aplicarMarca(reg, hora) {
+    const accion = proximaMarca(reg, hora);
+    if (!accion || accion === 'entrada') return null;
+
+    let cambios;
+    if (accion === 'descanso') {
+        cambios = { descansos: [...descansosDe(reg), { inicio: hora, fin: '' }] };
+    } else if (accion === 'fin_descanso') {
+        const descansos = descansosDe(reg).slice();
+        descansos[descansos.length - 1] = { ...descansos[descansos.length - 1], fin: hora };
+        cambios = { descansos };
+    } else {
+        cambios = { salidaMarcada: hora };
+    }
+
+    const datos = datosJornada(reg, cambios);
+    await updateDoc(doc(getUserCollection('asistencia'), reg.id), {
+        ...datos,
+        // Se guarda la clasificación vigente de la llegada para que las horas no se ajusten dos veces.
+        estado: reg.estado,
+        minutosTarde: parseCantidad(reg.minutosTarde),
+        minutosTolerancia: parseCantidad(reg.minutosTolerancia),
+        ultimaMarca: Date.now(),
+        actualizadoEn: new Date()
+    });
+    return { accion, datos };
+}
+
+function mensajeMarca(nombre, accion, hora, datos) {
+    if (accion === 'descanso') return `<strong>${escapeHtml(nombre)}</strong> empezó el descanso a las ${hora}.`;
+    if (accion === 'fin_descanso') {
+        const ultimo = datos.descansos[datos.descansos.length - 1];
+        return `<strong>${escapeHtml(nombre)}</strong> volvió del descanso (${formatearMinutos(modulo(aMinutos(ultimo.fin) - aMinutos(ultimo.inicio), 1440))}).`;
+    }
+    const extras = parseCantidad(datos.horasExtras);
+    return `<strong>${escapeHtml(nombre)}</strong> salió a las ${hora}: ${formatCantidad(datos.horasTrabajadas, 2)} hs${extras > 0 ? ` + ${formatCantidad(extras, 2)} hs extra` : ''}.`;
+}
+
+window.horariosMarcar = async function(asistenciaId) {
+    const reg = state.asistenciaData.find(a => a.id === asistenciaId);
+    if (!reg || operariosMarcando.has(reg.operarioId)) return;
+    const { hora } = jornadaActual();
+    operariosMarcando.add(reg.operarioId);
+    try {
+        const resultado = await aplicarMarca(reg, hora);
+        if (resultado) showNotification(mensajeMarca(reg.operarioNombre, resultado.accion, hora, resultado.datos), resultado.accion === 'salida' ? 'success' : 'info');
+        return resultado?.accion || null;
+    } catch (e) {
+        console.error('Error registrando la marca:', e);
+        showAlert('No se pudo registrar. Revisá la conexión y volvé a intentar.', 'danger');
+    } finally {
+        operariosMarcando.delete(reg.operarioId);
+    }
+};
+
+/**
+ * Una sola marca por operario, como la de un lector de huella o tarjeta: la web decide qué es.
+ * Sin registro hoy → entrada. Después: descanso (pasadas las horas configuradas), fin del descanso y salida.
+ * Para conectar un lector: llamar horariosFicharPorLegajo(legajo) con el DNI o legajo cargado en Personal.
+ */
+window.horariosFichar = async function(operarioId) {
+    const jornada = jornadaActual();
+    const reg = state.asistenciaData.find(a => a.operarioId === operarioId && a.fecha === jornada.fecha);
+    if (!reg) {
+        window.horariosRegistrarEntrada(operarioId);
+        return 'entrada';
+    }
+    const ultima = Number(reg.ultimaMarca) || 0;
+    if (Date.now() - ultima < MARCA_REPETIDA_MS) return 'repetida';
+    if (!proximaMarca(reg, jornada.hora)) return 'cerrada';
+    return window.horariosMarcar(reg.id);
+};
+
+window.horariosFicharPorLegajo = function(legajo) {
+    const buscado = String(legajo || '').trim();
+    const op = state.operariosData.find(o => o.activo !== false && String(o.dni || '').trim() === buscado);
+    if (!op) {
+        showAlert(`No hay ningún operario activo con el legajo ${escapeHtml(buscado)}.`, 'warning');
+        return Promise.resolve('desconocido');
+    }
+    return window.horariosFichar(op.id);
+};
 
 window.horariosAlternarEnPlanta = function() {
     enPlantaTodosLosTurnos = !enPlantaTodosLosTurnos;
@@ -542,7 +722,7 @@ window.horariosGuardarSalida = async function() {
         return;
     }
 
-    const datos = aplicarSalidas({ entrada: reg.entrada, salidaProgramada: salidaProgramadaDe(reg), salidas });
+    const datos = datosJornada(reg, { salidas });
     guardandoSalida = true;
     try {
         // Se guarda también la clasificación vigente de la llegada para que las horas no se ajusten dos veces.
@@ -697,7 +877,8 @@ window.horariosRegistrarEntrada = function(operarioId) {
                 horasTrabajadas: Number(Math.max(0, configHorario.jornadaHs - tarde / 60).toFixed(2)),
                 minutosTarde: tarde,
                 minutosTolerancia: turno.minutosTolerancia,
-                horasExtras: 0
+                horasExtras: 0,
+                ultimaMarca: Date.now()
             },
             mensaje: `entrada ${hora}, turno ${turno.nombre}, ${turno.estado === 'tarde' ? `<strong>${descripcion}</strong>` : descripcion}.`,
             tipo: { presente: 'success', tolerancia: 'info', tarde: 'warning' }[turno.estado]
@@ -990,6 +1171,20 @@ window.horariosMoverMesCalendario = function(delta) {
     actualizarVistaReporteSeleccionado();
 };
 
+// Entrada a salida, con el descanso y una nota cuando la salida no se marcó (se tomó el turno completo).
+function textoDescansos(r) {
+    return descansosDe(r).map(d => d.fin ? `Descanso ${d.inicio} a ${d.fin}` : `Descanso desde ${d.inicio}, sin cerrar`).join(' · ');
+}
+
+function htmlHorario(r) {
+    if (!r.entrada || !r.salida) return '—';
+    const sinMarcar = esPresencia(r.estado) && !r.salidaMarcada && !salidaEnCurso(salidasDe(r));
+    const descansos = textoDescansos(r);
+    return `<span class="text-nowrap">${escapeHtml(r.entrada)} a ${escapeHtml(r.salida)}</span>`
+        + (sinMarcar ? '<br><small class="text-muted">Salida sin marcar: turno completo</small>' : '')
+        + (descansos ? `<br><small class="text-muted"><i class="bi bi-cup-hot me-1"></i>${escapeHtml(descansos)}</small>` : '');
+}
+
 function renderizarHistorialReporte(registros) {
     const tbody = document.getElementById('horarios-reporte-tbody');
     const footer = document.getElementById('horarios-reporte-footer');
@@ -1022,7 +1217,7 @@ function renderizarHistorialReporte(registros) {
                 <td data-label="Fecha"><strong>${formatearFechaCorta(r.fecha)}</strong></td>
                 <td data-label="Turno">${escapeHtml(turnoDeRegistro(r)) || '—'}</td>
                 <td data-label="Estado"><span class="badge badge-asistencia-${info.css}"><i class="bi ${info.icon} me-1"></i>${info.label}</span></td>
-                <td data-label="Horario">${r.entrada && r.salida ? `${r.entrada} a ${r.salida}` : '—'}</td>
+                <td data-label="Horario">${htmlHorario(r)}</td>
                 <td data-label="Horas" class="text-end">${formatCantidad(r.horasTrabajadas, 2)} hs</td>
                 <td data-label="Extras" class="text-end">${extras > 0 ? `<span class="badge badge-extra-horas">+${formatCantidad(extras, 2)} hs</span>` : '—'}</td>
                 <td data-label="Tardanza" class="text-center">${tarde > 0 ? `<span class="badge badge-asistencia-tarde">${formatearMinutos(tarde)}</span>` : tolerancia > 0 ? `<span class="badge badge-asistencia-tolerancia">${formatearMinutos(tolerancia)}</span>` : '—'}</td>
@@ -1058,7 +1253,7 @@ window.horariosExportarCSV = function() {
     };
     const numero = valor => formatCantidad(parseCantidad(valor), 2).replace('.', ',');
     const filas = [
-        ['Fecha', 'Turno', 'Estado', 'Entrada', 'Salida', 'Horas normales', 'Horas extras', 'Minutos tarde', 'Salidas durante la jornada', 'Observaciones'].map(celda).join(';'),
+        ['Fecha', 'Turno', 'Estado', 'Entrada', 'Salida', 'Horas normales', 'Horas extras', 'Minutos tarde', 'Descanso', 'Salidas durante la jornada', 'Observaciones'].map(celda).join(';'),
         ...registros.map(r => [
             celda(formatearFechaCorta(r.fecha)),
             celda(turnoDeRegistro(r)),
@@ -1068,6 +1263,7 @@ window.horariosExportarCSV = function() {
             numero(r.horasTrabajadas),
             numero(r.horasExtras),
             numero(r.minutosTarde),
+            celda(textoDescansos(r)),
             celda(salidasDe(r).map(s => textoSalida(s)).join(' | ')),
             celda(r.observaciones || r.motivo)
         ].join(';'))
@@ -1379,10 +1575,16 @@ window.horariosCambioSalidasModal = function() {
 
 window.horariosCambioSalidaManualModal = function() {
     const inputSalida = document.getElementById('edit-asistencia-salida');
+    // La hora del turno se conserva: cambiar la salida a mano es marcarla, no mover el turno.
     delete inputSalida.dataset.porSalida;
-    inputSalida.dataset.programada = inputSalida.value;
     recalcularHorasModal();
 };
+
+function leerDescansoModal() {
+    const inicio = document.getElementById('edit-asistencia-descanso-inicio').value;
+    const fin = document.getElementById('edit-asistencia-descanso-fin').value;
+    return inicio ? [{ inicio, fin }] : [];
+}
 
 function recalcularHorasModal() {
     const entrada = document.getElementById('edit-asistencia-entrada').value;
@@ -1390,7 +1592,8 @@ function recalcularHorasModal() {
     if (!entrada || !salida) return;
     const { normales, extras } = calcularHoras(entrada, salida);
     const fuera = minutosFueraDe(entrada, leerSalidasModal().filter(s => s.salida && s.reingreso));
-    document.getElementById('edit-asistencia-horas').value = formatCantidad(Math.max(0, normales - fuera / 60));
+    const descanso = configHorario.descuentaDescanso ? minutosDescansoDe(entrada, leerDescansoModal()) : 0;
+    document.getElementById('edit-asistencia-horas').value = formatCantidad(Math.max(0, normales - (fuera + descanso) / 60));
 
     // Respeta un valor cargado a mano: solo pisa las extras si seguían siendo el cálculo automático anterior.
     const inputExtras = document.getElementById('edit-asistencia-extras');
@@ -1411,6 +1614,9 @@ function completarModalAsistencia({ id, nombre, reg, fecha, permiteEliminar }) {
     asignar('tarde', parseCantidad(reg?.minutosTarde));
     asignar('extras', formatCantidad(reg?.horasExtras));
     asignar('obs', reg?.observaciones || reg?.motivo || '');
+    const descanso = descansosDe(reg)[0];
+    asignar('descanso-inicio', descanso?.inicio || '');
+    asignar('descanso-fin', descanso?.fin || '');
     document.getElementById('edit-asistencia-extras').dataset.auto = reg?.entrada && reg?.salida ? calcularHoras(reg.entrada, reg.salida).extras : 0;
     document.getElementById('edit-asistencia-btn-eliminar').style.visibility = permiteEliminar ? 'visible' : 'hidden';
 
@@ -1448,8 +1654,12 @@ window.horariosProcesarLlegadaModal = function() {
     window.horariosCambiarEstadoModal();
     document.getElementById('edit-asistencia-tarde').value = turno.minutosTarde;
 
+    // Si la salida era la del turno (no se marcó a mano), sigue al turno nuevo cuando cambia la entrada.
     const salida = document.getElementById('edit-asistencia-salida');
-    if (!salida.value) salida.value = salida.dataset.programada = turno.salida;
+    if (!salida.value || (!salida.dataset.porSalida && salida.value === salida.dataset.programada)) {
+        salida.value = turno.salida;
+    }
+    salida.dataset.programada = turno.salida;
     recalcularHorasModal();
 };
 
@@ -1463,6 +1673,7 @@ window.horariosCambiarEstadoModal = function() {
     });
     if (estado !== 'tarde') document.getElementById('edit-asistencia-tarde').value = '0';
     document.getElementById('edit-asistencia-salidas-grupo').style.display = ausencia ? 'none' : '';
+    document.getElementById('edit-asistencia-descanso-grupo').style.display = ausencia ? 'none' : '';
 };
 
 window.horariosCalcularHorasModal = recalcularHorasModal;
@@ -1493,10 +1704,22 @@ window.horariosGuardarEdicionAsistencia = async function() {
         showAlert(errorSalidas, 'warning');
         return;
     }
+    const descansos = esPresencia(estado) ? leerDescansoModal() : [];
+    if (descansos.length && descansos[0].fin) {
+        const inicioRel = minutosDesdeEntrada(entrada, descansos[0].inicio);
+        const finRel = minutosDesdeEntrada(entrada, descansos[0].fin);
+        if (finRel <= inicioRel || finRel > LIMITE_JORNADA_MIN) {
+            showAlert('El fin del descanso tiene que ser después de su inicio.', 'warning');
+            return;
+        }
+    }
     const inputSalida = document.getElementById('edit-asistencia-salida');
-    const salidaProgramada = salidaEnCurso(salidas)
-        ? inputSalida.dataset.programada || turnoParaHora(entrada)?.salida || ''
-        : inputSalida.value;
+    const programadaTurno = inputSalida.dataset.programada || turnoParaHora(entrada)?.salida || '';
+    const seFue = salidaEnCurso(salidas);
+    // La salida cuenta como marcada si ya lo estaba o si se cargó una hora distinta a la del turno.
+    const salidaMarcada = esPresencia(estado) && !seFue && inputSalida.value
+        && (reg?.salidaMarcada || inputSalida.value !== programadaTurno) ? inputSalida.value : '';
+    const salidaProgramada = seFue || salidaMarcada ? programadaTurno : inputSalida.value;
 
     if (fecha !== reg?.fecha && state.asistenciaData.some(a => a.id !== id && a.operarioId === base.operarioId && a.fecha === fecha)) {
         showAlert(`Este operario ya tiene un registro el ${formatearFechaCorta(fecha)}. Editá ese día o elegí otra fecha.`, 'warning');
@@ -1514,8 +1737,11 @@ window.horariosGuardarEdicionAsistencia = async function() {
         minutosTolerancia: estado === 'tolerancia' ? turnoParaHora(entrada)?.minutosTolerancia || 0 : 0,
         horasExtras: parseCantidad(leer('extras')),
         salidas,
-        salidaProgramada: salidas.length ? salidaProgramada : '',
+        descansos,
+        salidaMarcada,
+        salidaProgramada: salidas.length || salidaMarcada ? salidaProgramada : '',
         minutosFuera: minutosFueraDe(entrada, salidas),
+        minutosDescanso: minutosDescansoDe(entrada, descansos),
         motivo: estado.includes('falta') ? observaciones : '',
         observaciones,
         actualizadoEn: new Date()
@@ -1586,6 +1812,8 @@ export function renderizarConfigHorario() {
     document.getElementById('cfg-tolerancia').value = configHorario.toleranciaMin;
     document.getElementById('cfg-anticipo').value = configHorario.anticipoMin;
     document.getElementById('cfg-extras').value = configHorario.extrasFraccionMin;
+    document.getElementById('cfg-descanso-desde').value = configHorario.descansoDesdeHs;
+    document.getElementById('cfg-descuenta-descanso').checked = !!configHorario.descuentaDescanso;
     window.horariosActualizarSalidasConfig();
 }
 
@@ -1606,6 +1834,8 @@ window.horariosGuardarConfig = async function() {
             toleranciaMin: parseCantidad(document.getElementById('cfg-tolerancia').value),
             anticipoMin: parseCantidad(document.getElementById('cfg-anticipo').value),
             extrasFraccionMin: parseCantidad(document.getElementById('cfg-extras').value),
+            descansoDesdeHs: parseCantidad(document.getElementById('cfg-descanso-desde').value),
+            descuentaDescanso: document.getElementById('cfg-descuenta-descanso').checked,
             actualizadoEn: new Date()
         });
         showNotification('Configuración de Control Horario guardada.', 'success');

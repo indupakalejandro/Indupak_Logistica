@@ -1665,6 +1665,7 @@
             --hor-justificada: #38bdf8;
             --hor-franco: #cbd5e1;
             --hor-extra: #d8b4fe;
+            --hor-salida: #f472b6;
             --hor-pendiente: #cbd5e1;
             --hor-suave: rgba(255, 255, 255, 0.72);
             --hor-linea: rgba(255, 255, 255, 0.14);
@@ -1680,6 +1681,7 @@
             --hor-justificada: #0369a1;
             --hor-franco: #475569;
             --hor-extra: #6b21a8;
+            --hor-salida: #be185d;
             --hor-pendiente: #475569;
             --hor-suave: rgba(30, 20, 50, 0.72);
             --hor-linea: rgba(30, 20, 50, 0.14);
@@ -1842,6 +1844,12 @@
             background: var(--card-bg);
         }
         .hor-en-planta-afuera { border: 1px dashed var(--hor-tarde); }
+        .hor-en-planta-botones { display: flex; gap: 0.35rem; flex: none; }
+        .hor-en-planta-descanso { border: 1px dashed var(--hor-justificada); }
+        .hor-en-planta-retirado { opacity: 0.65; }
+        .hor-descanso i { color: var(--hor-justificada); }
+        .hor-descanso.hor-salida-abierta, .hor-descanso.hor-salida-abierta i { color: var(--hor-justificada); }
+        .hor-retirado i { color: var(--hor-presente); }
         .hor-en-planta-fila { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
         .hor-en-planta .hor-operario { min-width: 0; }
         .hor-en-planta .hor-operario-datos strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1872,18 +1880,8 @@
         .hor-salida-fila label { display: flex; flex-direction: column; gap: 0.15rem; margin: 0; min-width: 0; }
         .hor-salida-fila small { font-size: 0.7rem; color: var(--hor-suave); }
         .hor-salida-nota { grid-column: 1 / -1; }
-        .hor-cal-con-salida { position: relative; }
-        .hor-cal-con-salida::after {
-            content: '';
-            position: absolute;
-            top: 3px;
-            right: 3px;
-            width: 5px;
-            height: 5px;
-            border-radius: 50%;
-            background: var(--hor-texto-activo);
-            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
-        }
+        /* Días en que el operario se fue durante la jornada: color propio, gana sobre el de la llegada */
+        .hor-cal-dia.hor-cal-con-salida { --cal: var(--hor-salida); }
         @media (max-width: 575.98px) {
             .hor-salida-fila { grid-template-columns: 1fr 1fr auto; }
             .hor-salida-motivo { grid-column: 1 / -1; grid-row: 2; }
@@ -2017,7 +2015,7 @@
             background: var(--cal);
         }
 
-        .hor-leyenda span.hor-leyenda-salida::before { width: 6px; height: 6px; border-radius: 50%; border: 0; background: var(--text-color); }
+        .hor-leyenda span.hor-leyenda-salida { --cal: var(--hor-salida); }
 
         /* Badges de estado */
         #panel-horarios .badge { font-weight: 600; }
@@ -2158,10 +2156,10 @@ body.light-mode {
 .dock:hover::after,
 .dock-buscador:hover::after { opacity: 1; }
 
-/* Burbuja de la sección activa: una lente de vidrio verde apoyada ENCIMA del botón.
+/* Burbuja de la sección activa: una lente de vidrio verde detrás del botón; el texto queda por encima.
    Es translúcida y no desenfoca, así el texto se ve a través del vidrio y se lee bien. */
 .dock-burbuja {
-    z-index: 3;
+    z-index: 0;
     background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.02) 48%, rgba(255, 255, 255, 0.08)),
         color-mix(in srgb, var(--accent-color) 38%, transparent);
@@ -2176,7 +2174,7 @@ body.light-mode {
 }
 body.light-mode .dock-burbuja { background: linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.05) 48%, rgba(255, 255, 255, 0.15)), color-mix(in srgb, var(--accent-color) 32%, transparent); }
 /* Debajo de la lente el texto queda con su color normal, en negrita */
-@media (min-width: 768px) { .dock > .dock-item.active { color: #fff; font-weight: 700; } }
+@media (min-width: 768px) { .dock > .dock-item.active { color: var(--navbar-text); font-weight: 700; } }
 .dock-burbuja.estirandose { animation: burbujaGota 0.6s var(--suave); }
 @keyframes burbujaGota {
     0% { scale: 1 1; }
@@ -2285,4 +2283,70 @@ button.hor-kpi:hover { filter: brightness(1.05); }
     .vidrio-refraccion .dock,
     .vidrio-refraccion .dock-buscador,
     .vidrio-refraccion #nav-time-widget { backdrop-filter: blur(16px); }
+}
+/* ══════════ ACCESOS: ingreso, menú del usuario y permisos ══════════ */
+.sin-permiso { display: none !important; }
+
+.pantalla-ingreso {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: color-mix(in srgb, var(--background-end) 55%, transparent);
+    backdrop-filter: blur(18px) saturate(1.3);
+    -webkit-backdrop-filter: blur(18px) saturate(1.3);
+}
+.pantalla-ingreso[hidden] { display: none; }
+body.sin-sesion .barra-app,
+body.sin-sesion #nav-time-widget,
+body.sin-sesion .inicio-mensaje,
+body.sin-sesion .usuario-menu { display: none !important; }
+.ingreso-tarjeta {
+    width: min(100%, 22rem);
+    padding: 1.75rem 1.5rem 1.25rem;
+    border-radius: var(--radius-g2-xxl);
+    background: linear-gradient(165deg, var(--vidrio-reflejo), rgba(255, 255, 255, 0.03) 45%), var(--card-bg);
+    border: 1px solid var(--vidrio-borde);
+    box-shadow: inset 0 1px 0 var(--vidrio-brillo), 0 24px 60px var(--shadow-color);
+    color: var(--text-color);
+}
+@supports (corner-shape: squircle) { .ingreso-tarjeta { corner-shape: squircle; } }
+.ingreso-marca { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.25rem; }
+.ingreso-marca i { font-size: 1.6rem; color: var(--accent-color); }
+.ingreso-marca strong { font-size: 1.15rem; }
+.ingreso-marca span { font-size: 0.78rem; color: color-mix(in srgb, var(--text-color) 70%, transparent); }
+.ingreso-titulo { font-size: 1.35rem; font-weight: 700; margin: 0 0 0.75rem; }
+.ingreso-ayuda { font-size: 0.82rem; color: color-mix(in srgb, var(--text-color) 75%, transparent); margin-bottom: 0.75rem; }
+.ingreso-error { margin-bottom: 0.75rem; padding: 0.5rem 0.75rem; border-radius: var(--radius-g2-sm); background: rgba(248, 113, 113, 0.18); border: 1px solid rgba(248, 113, 113, 0.5); font-size: 0.85rem; }
+.ingreso-error[hidden] { display: none; }
+.ingreso-alternar { display: block; margin: 0.9rem auto 0; border: 0; background: transparent; color: color-mix(in srgb, var(--text-color) 70%, transparent); font-size: 0.8rem; text-decoration: underline; cursor: pointer; }
+
+.usuario-menu { position: fixed; top: 0.75rem; left: 1rem; z-index: 1031; }
+.usuario-menu[hidden] { display: none; }
+.usuario-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    height: 36px;
+    max-width: 14rem;
+    padding: 0 0.85rem;
+    border-radius: var(--radius-g2-pill);
+    border: 1px solid var(--vidrio-borde);
+    background: linear-gradient(180deg, var(--vidrio-reflejo), rgba(255, 255, 255, 0.03)), var(--navbar-bg);
+    color: var(--navbar-text);
+    font-size: 0.8rem;
+    font-weight: 600;
+    box-shadow: inset 0 1px 1px var(--vidrio-brillo), 0 6px 18px var(--shadow-color);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+.usuario-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.usuario-chip i { font-size: 1.05rem; }
+@media (max-width: 767.98px) {
+    .usuario-menu { top: 0.5rem; left: 0.5rem; }
+    .usuario-chip span { display: none; }
+    .usuario-chip { padding: 0 0.6rem; }
 }

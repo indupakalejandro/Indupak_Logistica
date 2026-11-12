@@ -8,6 +8,7 @@ import { renderizarPanelComisionistas, renderLocalidadesCheckboxes } from './com
 import { renderizarListaCategorias, renderizarListaUnidadesMedida, renderizarListaRoles, renderizarListaLocalidades, renderizarListaProveedoresPlastico } from './configuracion.js';
 import { renderizarPanelCompras } from './compras.js';
 import { renderizarTablaFaltantes, escucharHistorialFaltantes } from './faltantes.js';
+import { mostrarIngreso, ocultarIngreso, aplicarPermisos, escucharUsuarios } from './accesos.js';
 import { renderizarPanelPagos, actualizarDropdownProveedoresPlastico } from './pagos.js';
 import { setupControlListeners, controlRestaurarDesdeLocal, controlMostrarLista } from './control.js';
 import { renderizarTablaAnalisis } from './analisis.js';
@@ -370,9 +371,18 @@ function setupRealtimeListeners() {
 }
 
 // --- Initialize Firebase ---
+// Sin sesión se muestra el ingreso; con sesión se aplican los permisos del rol antes de cargar los datos.
 initFirebase(function onAuthReady() {
     state.isAuthReady = true;
     setupRealtimeListeners();
+}, {
+    alSinSesion: () => mostrarIngreso(),
+    alRechazar: mensaje => mostrarIngreso(mensaje),
+    alIngresar: () => {
+        ocultarIngreso();
+        aplicarPermisos();
+        escucharUsuarios();
+    }
 });
 
 // --- Initialize Bobinas (separate Firebase project) ---

@@ -37,6 +37,59 @@
     </svg>
     <div class="inicio-mensaje" id="inicio-mensaje" aria-live="polite"></div>
 
+    <!-- Ingreso con usuario y contraseña -->
+    <div class="pantalla-ingreso" id="pantalla-ingreso" hidden>
+        <form class="ingreso-tarjeta" id="formIngreso" onsubmit="event.preventDefault(); accesosIngresar();">
+            <div class="ingreso-marca"><i class="bi bi-box-seam"></i><strong>Indupak</strong><span>Logística &amp; Control</span></div>
+            <h1 class="ingreso-titulo" id="ingreso-titulo">Ingresar</h1>
+            <p class="ingreso-ayuda" id="ingreso-ayuda" hidden>Primera vez: creá el usuario administrador. Después vas a poder crear los demás desde Configuración.</p>
+            <div class="mb-2" id="ingreso-nombre-grupo" hidden>
+                <label class="form-label" for="ingreso-nombre">Tu nombre</label>
+                <input type="text" class="form-control" id="ingreso-nombre" autocomplete="name">
+            </div>
+            <div class="mb-2">
+                <label class="form-label" for="ingreso-usuario">Usuario</label>
+                <input type="text" class="form-control" id="ingreso-usuario" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="ingreso-contrasena">Contraseña</label>
+                <input type="password" class="form-control" id="ingreso-contrasena" autocomplete="current-password" required>
+            </div>
+            <div class="ingreso-error" id="ingreso-error" role="alert" hidden></div>
+            <button type="submit" class="btn btn-primary w-100" id="ingreso-boton">Ingresar</button>
+            <button type="button" class="ingreso-alternar" id="ingreso-alternar" onclick="accesosAlternarPrimerAdmin()">Primera vez: crear el administrador</button>
+        </form>
+    </div>
+
+    <!-- Menú del usuario -->
+    <div class="usuario-menu dropdown" id="usuario-menu" hidden>
+        <button class="usuario-chip" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Tu usuario">
+            <i class="bi bi-person-circle"></i><span id="usuario-menu-nombre"></span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+            <li><span class="dropdown-item-text small" id="usuario-menu-rol"></span></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item" type="button" onclick="accesosAbrirCambioContrasena()"><i class="bi bi-key me-2"></i>Cambiar contraseña</button></li>
+            <li><button class="dropdown-item" type="button" onclick="accesosCerrarSesion()"><i class="bi bi-box-arrow-right me-2"></i>Cerrar sesión</button></li>
+        </ul>
+    </div>
+
+    <!-- Cambio de la propia contraseña -->
+    <div class="modal fade" id="modalCambioContrasena" tabindex="-1" aria-hidden="true" aria-labelledby="cambio-contrasena-titulo">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <form class="modal-content" onsubmit="event.preventDefault(); accesosCambiarContrasena();">
+                <div class="modal-header"><h5 class="modal-title" id="cambio-contrasena-titulo"><i class="bi bi-key me-2"></i>Cambiar contraseña</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+                <div class="modal-body">
+                    <label class="form-label" for="contrasena-actual">Contraseña actual</label>
+                    <input type="password" class="form-control mb-2" id="contrasena-actual" autocomplete="current-password" required>
+                    <label class="form-label" for="contrasena-nueva">Nueva contraseña</label>
+                    <input type="password" class="form-control" id="contrasena-nueva" minlength="6" autocomplete="new-password" required>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary btn-sm">Guardar</button></div>
+            </form>
+        </div>
+    </div>
+
     <div id="themeToggleHotspot"></div>
 
     <div class="corner-btn" id="themeToggle">
@@ -216,12 +269,12 @@
                 </div>
             </div>
 
-            <!-- Previsión de compras -->
+            <!-- Artículos por comprar (los mismos de Insumos > Por Comprar) -->
             <div class="dash-area-prevision">
                 <div class="card dash-panel esqueleto" data-esqueleto="prevision">
                     <div class="card-header py-2 px-3">
-                        <h6 class="mb-0 fw-bold"><i class="bi bi-calendar-range me-2"></i>Próximas compras</h6>
-                        <span class="small">90 días</span>
+                        <h6 class="mb-0 fw-bold"><i class="bi bi-cart-check me-2"></i>Por comprar</h6>
+                        <button type="button" class="btn btn-sm btn-link p-0 small text-decoration-none" onclick="irAPanel('insumos'); switchInsumosTab('compras');">Ver todo <i class="bi bi-chevron-right"></i></button>
                     </div>
                     <div class="card-body dash-prevision-body" id="dashboard-prevision-body"></div>
                     <div class="card-footer text-muted small py-2 px-3" id="dashboard-prevision-pie"></div>
@@ -297,14 +350,16 @@
             <div class="card">
                 <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table id="comprasTable" class="table table-hover mb-0 sortable">
+                        <!-- Sin "sortable": el orden lo maneja compras.js para no separar los artículos de su proveedor -->
+                        <table id="comprasTable" class="table table-hover mb-0">
                             <thead>
                                 <tr>
-                                    <th class="sortable-header">Artículo</th>
-                                    <th class="text-end sortable-header">Stock Actual</th>
-                                    <th class="text-end sortable-header">Stock Mínimo</th>
-                                    <th class="text-end sortable-header">Cantidad a Comprar</th>
-                                    <th class="sortable-header">Unidad</th>
+                                    <th class="sortable-header" data-orden="nombre" onclick="ordenarCompras('nombre')">Artículo</th>
+                                    <th class="text-end sortable-header" data-orden="stock" onclick="ordenarCompras('stock')">Stock Actual</th>
+                                    <th class="text-end sortable-header" data-orden="minimo" onclick="ordenarCompras('minimo')">Stock Mínimo</th>
+                                    <th class="text-end sortable-header" data-orden="comprar" onclick="ordenarCompras('comprar')">Cantidad a Comprar</th>
+                                    <th class="sortable-header" data-orden="unidad" onclick="ordenarCompras('unidad')">Unidad</th>
+                                    <th class="text-end sortable-header" data-orden="dias" onclick="ordenarCompras('dias')" title="Días hasta llegar a 0 según el consumo">Días restantes</th>
                                 </tr>
                             </thead>
                             <tbody id="tabla-compras-body"></tbody>
@@ -1110,6 +1165,7 @@
                     <li class="nav-item"><button class="nav-link active" id="tab-btn-config-insumos" onclick="switchConfiguracionTab('insumos')"><i class="bi bi-boxes me-1"></i>Insumos</button></li>
                     <li class="nav-item"><button class="nav-link" id="tab-btn-config-contactos" onclick="switchConfiguracionTab('contactos')"><i class="bi bi-people-fill me-1"></i>Contactos</button></li>
                     <li class="nav-item"><button class="nav-link" id="tab-btn-config-horario" onclick="switchConfiguracionTab('horario')"><i class="bi bi-clock-history me-1"></i>Control Horario</button></li>
+                    <li class="nav-item"><button class="nav-link" id="tab-btn-config-usuarios" onclick="switchConfiguracionTab('usuarios')"><i class="bi bi-person-lock me-1"></i>Usuarios</button></li>
                     <li class="nav-item"><button class="nav-link" id="tab-btn-config-sistema" onclick="switchConfiguracionTab('sistema')"><i class="bi bi-info-circle-fill me-1"></i>Sistema</button></li>
                 </ul>
             </div>
@@ -1239,7 +1295,18 @@
                             <div class="col-12 col-md-6">
                                 <label class="form-label">Bloque de horas extra</label>
                                 <select class="form-select form-select-sm" id="cfg-extras"><option value="15">15 minutos</option><option value="30">30 minutos</option><option value="60">1 hora</option></select>
-                                <div class="form-text cfg-ayuda">Las extras se proponen en múltiplos de este tiempo.</div>
+                                <div class="form-text cfg-ayuda">Solo cuentan los bloques completos: con 1 hora, quedarse 20 minutos más no suma extra.</div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Descanso a partir de (horas)</label>
+                                <input type="number" class="form-control form-control-sm" id="cfg-descanso-desde" min="0" max="12" step="0.5" required>
+                                <div class="form-text cfg-ayuda">Una marca después de estas horas desde la entrada inicia el descanso; antes, es la salida.</div>
+                            </div>
+                            <div class="col-12 col-md-6 d-flex align-items-center">
+                                <div class="form-check form-switch mt-md-3">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="cfg-descuenta-descanso">
+                                    <label class="form-check-label" for="cfg-descuenta-descanso">Descontar el descanso de las horas trabajadas</label>
+                                </div>
                             </div>
                     </div>
                 </div>
@@ -1248,6 +1315,52 @@
                     <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-floppy me-1"></i>Guardar</button>
                 </div>
             </form>
+        </div>
+
+        <div class="row" id="config-seccion-usuarios" style="display: none;">
+            <div class="col-lg-5 mb-4">
+                <form class="card" id="formNuevoUsuario" onsubmit="event.preventDefault(); accesosCrearUsuario();" autocomplete="off">
+                    <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-person-plus-fill me-2"></i>Nuevo usuario</h5></div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label" for="nuevo-usuario-nombre">Nombre</label>
+                            <input type="text" class="form-control form-control-sm" id="nuevo-usuario-nombre" placeholder="Ej.: María Gómez" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label" for="nuevo-usuario-usuario">Usuario</label>
+                            <input type="text" class="form-control form-control-sm" id="nuevo-usuario-usuario" placeholder="Ej.: mgomez" autocapitalize="none" spellcheck="false" required>
+                            <div class="form-text cfg-ayuda">Entre 3 y 30 letras, números, punto, guion o guion bajo. Sin espacios.</div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label" for="nuevo-usuario-rol">Rol</label>
+                            <select class="form-select form-select-sm" id="nuevo-usuario-rol"></select>
+                            <div class="form-text cfg-ayuda" id="nuevo-usuario-rol-ayuda"></div>
+                        </div>
+                        <div>
+                            <label class="form-label" for="nuevo-usuario-contrasena">Contraseña inicial</label>
+                            <input type="password" class="form-control form-control-sm" id="nuevo-usuario-contrasena" minlength="6" autocomplete="new-password" required>
+                            <div class="form-text cfg-ayuda">Mínimo 6 caracteres. La persona la puede cambiar después desde su menú.</div>
+                        </div>
+                    </div>
+                    <div class="card-footer d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary btn-sm" id="nuevo-usuario-guardar"><i class="bi bi-person-check-fill me-1"></i>Crear usuario</button>
+                    </div>
+                </form>
+            </div>
+            <div class="col-lg-7 mb-4">
+                <div class="card">
+                    <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-people-fill me-2"></i>Usuarios</h5></div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th class="text-center">Estado</th></tr></thead>
+                                <tbody id="tabla-usuarios-body"><tr><td colspan="4" class="text-center text-muted">Cargando…</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer text-muted small">Para cambiar la contraseña de otra persona, desactivá su usuario y creale uno nuevo.</div>
+                </div>
+            </div>
         </div>
 
         <div class="row" id="config-seccion-sistema" style="display: none;">
@@ -2219,6 +2332,16 @@
                         <div class="col-6">
                             <label class="form-label">Horas Extras</label>
                             <input type="number" step="any" min="0" class="form-control" id="edit-asistencia-extras" placeholder="0">
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3" id="edit-asistencia-descanso-grupo">
+                        <div class="col-6">
+                            <label class="form-label small" for="edit-asistencia-descanso-inicio"><i class="bi bi-cup-hot me-1"></i>Descanso desde</label>
+                            <input type="time" class="form-control text-center" id="edit-asistencia-descanso-inicio" oninput="horariosCalcularHorasModal()">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small" for="edit-asistencia-descanso-fin">Descanso hasta</label>
+                            <input type="time" class="form-control text-center" id="edit-asistencia-descanso-fin" oninput="horariosCalcularHorasModal()">
                         </div>
                     </div>
                     <div class="mb-3" id="edit-asistencia-salidas-grupo">

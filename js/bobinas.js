@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import {
     getFirestore, collection, doc, getDoc, setDoc,
     addDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs
@@ -15,7 +15,7 @@ const BOBINAS_CONFIG = {
     appId: "1:683549201271:web:d02e542ea0a7df39b30772"
 };
 
-let bDb, bAuth, bUserId;
+let bDb, bUserId;
 let bInventarioReady = false;
 let _sacando = null; // coil currently being removed from stock
 
@@ -74,7 +74,7 @@ function showToast(msg, type = 'success') {
 // ── Firestore cart persistence ───────────────────────────────────────────────
 async function saveCart() {
     if (!bUserId || !bDb) return;
-    await setDoc(doc(bDb, 'carritos', bUserId), { items: state.bobinasCartItems }, { merge: true });
+    await setDoc(docB('carritos', bUserId), { items: state.bobinasCartItems }, { merge: true });
 }
 
 // ── Cart UI ──────────────────────────────────────────────────────────────────
@@ -349,26 +349,58 @@ export function renderizarBobinasPanel() {
 }
 
 // ── Firebase init & listeners ────────────────────────────────────────────────
-export function initBobinas() {
-    cargarSolicitudesPendientes();
-    const existing = getApps().find(a => a.name === 'bobinas-app');
-    const app = existing || initializeApp(BOBINAS_CONFIG, 'bobinas-app');
-    bDb   = getFirestore(app);
-    bAuth = getAuth(app);
+// Bobinas vive en la base principal, protegida por usuario y contraseña como el resto.
+// (Antes usaba otra base con ingreso anónimo: cualquiera con el código podía leerla y modificarla.)
+const RUTAS_BOBINAS = {
+    inventario: 'artifacts/default-app-id/bobinasInventario',
+    historial: 'artifacts/default-app-id/bobinasHistorial',
+    carritos: 'artifacts/default-app-id/bobinasCarritos'
+};
+const colB = nombre => collection(bDb, RUTAS_BOBINAS[nombre]);
+const docB = (nombre, id) => doc(bDb, RUTAS_BOBINAS[nombre], id);
 
-    onAuthStateChanged(bAuth, user => {
-        if (user) {
-            bUserId = user.uid;
-            _setupListeners();
-        } else {
-            signInAnonymously(bAuth).catch(console.error);
+// Se llama cuando ya hay un usuario con sesión (desde app.js).
+export function initBobinas() {
+    if (bDb) return;
+    cargarSolicitudesPendientes();
+    bDb = state.db;
+    bUserId = state.userId;
+    _setupListeners();
+}
+
+/**
+ * Copia una sola vez los datos de la base vieja de Bobinas a la principal, con los mismos identificadores.
+ * Hace falta que la base vieja todavía permita el ingreso anónimo; después conviene cerrarla.
+ */
+export async function migrarBobinasDesdeBaseVieja() {
+    const existente = getApps().find(a => a.name === 'bobinas-vieja');
+    const appVieja = existente || initializeApp(BOBINAS_CONFIG, 'bobinas-vieja');
+    await signInAnonymously(getAuth(appVieja));
+    const dbVieja = getFirestore(appVieja);
+
+    const resultado = {};
+    for (const nombre of ['inventario', 'historial']) {
+        const snap = await getDocs(collection(dbVieja, nombre));
+        const yaCopiados = new Set((await getDocs(colB(nombre))).docs.map(d => d.id));
+        let copiados = 0;
+        for (const d of snap.docs) {
+            if (yaCopiados.has(d.id)) continue;
+            await setDoc(docB(nombre, d.id), d.data());
+            copiados++;
         }
+        resultado[nombre] = { enLaVieja: snap.size, copiados, yaEstaban: snap.size - copiados };
+    }
+    await setDoc(doc(bDb, 'artifacts/default-app-id/configuracion', 'bobinasMigracion'), {
+        fecha: new Date(),
+        por: state.usuario?.usuario || '',
+        resultado
     });
+    return resultado;
 }
 
 function _setupListeners() {
     // Inventario
-    onSnapshot(collection(bDb, 'inventario'), snap => {
+    onSnapshot(colB('inventario'), snap => {
         state.bobinasData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         bInventarioReady = true;
         if (state.currentActivePanel === 'bobinas') {
@@ -381,12 +413,12 @@ function _setupListeners() {
     }, err => console.error('bobinas/inventario', err));
 
     // Historial
-    onSnapshot(collection(bDb, 'historial'), snap => {
+    onSnapshot(colB('historial'), snap => {
         state.bobinasHistorialData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     }, err => console.error('bobinas/historial', err));
 
     // Cart (per user)
-    onSnapshot(doc(bDb, 'carritos', bUserId), snap => {
+    onSnapshot(docB('carritos', bUserId), snap => {
         state.bobinasCartItems = snap.exists() ? (snap.data().items || []) : [];
         updateCartBar();
     }, err => console.error('bobinas/carritos', err));
@@ -442,19 +474,19 @@ window.bobinasGuardar = async function() {
     const nombre = `${ancho}x${espesor} ${tipo}`;
 
     try {
-        const q    = query(collection(bDb, 'inventario'), where('nombre', '==', nombre), where('material', '==', material));
+        const q    = query(colB('inventario'), where('nombre', '==', nombre), where('material', '==', material));
         const snap = await getDocs(q);
 
         if (!snap.empty) {
             const ex = snap.docs[0];
             const ed = ex.data();
-            await updateDoc(doc(bDb, 'inventario', ex.id), {
+            await updateDoc(docB('inventario', ex.id), {
                 metros: Math.round(Number(ed.metros) + metros),
                 kilos:  parseFloat((Number(ed.kilos) + kilos).toFixed(2))
             });
             showToast('Bobina existente actualizada con éxito.');
         } else {
-            await addDoc(collection(bDb, 'inventario'), { nombre, material, metros: Math.round(metros), kilos });
+            await addDoc(colB('inventario'), { nombre, material, metros: Math.round(metros), kilos });
             showToast('Nueva bobina agregada al stock.');
         }
         bootstrap.Modal.getInstance(document.getElementById('modalBobinaAgregar'))?.hide();
@@ -497,7 +529,7 @@ window.bobinasGuardarEdicion = async function() {
     }
     const kilos = calcKilos(ancho, espesor, metros);
     try {
-        await updateDoc(doc(bDb, 'inventario', id), {
+        await updateDoc(docB('inventario', id), {
             nombre: `${ancho}x${espesor} ${tipo}`, material, metros, kilos
         });
         showToast('Bobina actualizada.');
@@ -517,8 +549,8 @@ window.bobinasEliminar = function(id) {
         async ok => {
             if (!ok) return;
             try {
-                await deleteDoc(doc(bDb, 'inventario', id));
-                await addDoc(collection(bDb, 'historial'), {
+                await deleteDoc(docB('inventario', id));
+                await addDoc(colB('historial'), {
                     fecha: new Date().toISOString(),
                     articulo: item.nombre,
                     metrosMovidos: Math.round(Number(item.metros)),
@@ -680,9 +712,9 @@ window.bobinasConfirmarManual = async function() {
 
             try {
                 if (newMetros <= 0) {
-                    await deleteDoc(doc(bDb, 'inventario', itemStock.id));
+                    await deleteDoc(docB('inventario', itemStock.id));
                 } else {
-                    await updateDoc(doc(bDb, 'inventario', itemStock.id), {
+                    await updateDoc(docB('inventario', itemStock.id), {
                         metros: Math.round(newMetros),
                         kilos: newKilos
                     });
@@ -774,7 +806,7 @@ window.bobinasQuitarItem = function(index) {
         async ok => {
             if (!ok) return;
             try {
-                const ref  = doc(bDb, 'inventario', item.coilId);
+                const ref  = docB('inventario', item.coilId);
                 const snap = await getDoc(ref);
                 const updM = snap.exists()
                     ? Number(snap.data().metros) + Number(item.metrosASacar)
@@ -784,7 +816,7 @@ window.bobinasQuitarItem = function(index) {
                 if (snap.exists()) {
                     await updateDoc(ref, { metros: Math.round(updM), kilos: updK });
                 } else {
-                    await addDoc(collection(bDb, 'inventario'), {
+                    await addDoc(colB('inventario'), {
                         nombre: item.articuloNombre, material: item.material,
                         metros: Math.round(updM), kilos: updK
                     });
@@ -808,7 +840,7 @@ window.bobinasVaciarCarrito = function() {
         for (const item of state.bobinasCartItems) {
             if (!item.isFromStock && (!item.coilId || item.coilId.startsWith('mov-'))) continue;
             try {
-                const ref  = doc(bDb, 'inventario', item.coilId);
+                const ref  = docB('inventario', item.coilId);
                 const snap = await getDoc(ref);
                 const updM = snap.exists()
                     ? Number(snap.data().metros) + Number(item.metrosASacar)
@@ -817,7 +849,7 @@ window.bobinasVaciarCarrito = function() {
                 if (snap.exists()) {
                     await updateDoc(ref, { metros: Math.round(updM), kilos: updK });
                 } else {
-                    await addDoc(collection(bDb, 'inventario'), {
+                    await addDoc(colB('inventario'), {
                         nombre: item.articuloNombre, material: item.material,
                         metros: Math.round(updM), kilos: updK
                     });
@@ -918,7 +950,7 @@ window.bobinasExportarPdf = function() {
                 const obs = item.destino
                     ? `Movimiento a ${item.destino.deposito}. Bobinas: ${item.destino.cantidad}. Cliente: ${item.destino.cliente}.`
                     : (item.observacion || 'Ninguna');
-                await addDoc(collection(bDb, 'historial'), {
+                await addDoc(colB('historial'), {
                     fecha: new Date().toISOString(),
                     articulo: item.articuloNombre,
                     metrosMovidos: Math.round(Number(item.metrosASacar)),

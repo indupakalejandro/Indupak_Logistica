@@ -375,6 +375,8 @@ function setupRealtimeListeners() {
 initFirebase(function onAuthReady() {
     state.isAuthReady = true;
     setupRealtimeListeners();
+    // Bobinas también vive en la base protegida: se conecta recién con un usuario con sesión.
+    initBobinas();
 }, {
     alSinSesion: () => mostrarIngreso(),
     alRechazar: mensaje => mostrarIngreso(mensaje),
@@ -387,8 +389,6 @@ initFirebase(function onAuthReady() {
     }
 });
 
-// --- Initialize Bobinas (separate Firebase project) ---
-initBobinas();
 
 // --- DOMContentLoaded ---
 document.addEventListener('DOMContentLoaded', function() {

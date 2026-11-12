@@ -42,8 +42,11 @@ const docAccesos = () => doc(state.db, `artifacts/${appId}/configuracion`, 'acce
  */
 let manejarSesion = async () => {};
 let creandoPrimerAdmin = false;
+// Contraseña con la que el administrador crea los usuarios: quien entra con ella tiene que cambiarla.
+export const CLAVE_INICIAL = '123456';
+let entroConClaveInicial = false;
 
-export function initFirebase(onAuthReady, { alSinSesion, alIngresar, alRechazar } = {}) {
+export function initFirebase(onAuthReady, { alSinSesion, alIngresar, alRechazar, alDebeCambiarClave } = {}) {
     state.app = initializeApp(firebaseConfig);
     state.db = getFirestore(state.app);
     state.auth = getAuth(state.app);
@@ -69,6 +72,15 @@ export function initFirebase(onAuthReady, { alSinSesion, alIngresar, alRechazar 
             }
             state.userId = user.uid;
             state.usuario = { uid: user.uid, ...perfil };
+            // Primer ingreso: hasta que elija su contraseña no entra a la web ni se cargan los datos.
+            if (perfil.debeCambiarClave || entroConClaveInicial) {
+                if (entroConClaveInicial && !perfil.debeCambiarClave) {
+                    // Queda marcado para que, si cierra sin cambiarla, se la vuelva a pedir.
+                    updateDoc(docUsuario(user.uid), { debeCambiarClave: true }).catch(e => console.error('No se pudo marcar el cambio de clave:', e));
+                }
+                alDebeCambiarClave?.(state.usuario);
+                return;
+            }
             const primeraVez = !state.isAuthReady;
             state.isAuthReady = true;
             alIngresar?.(state.usuario);
@@ -83,7 +95,19 @@ export function initFirebase(onAuthReady, { alSinSesion, alIngresar, alRechazar 
 }
 
 export function ingresar(usuario, contrasena) {
+    entroConClaveInicial = contrasena === CLAVE_INICIAL;
     return signInWithEmailAndPassword(state.auth, correoDeUsuario(usuario), contrasena);
+}
+
+/** Cambio obligatorio del primer ingreso: cambia la contraseña, quita la marca y entra a la web. */
+export async function guardarClaveObligatoria(actual, nueva) {
+    const user = state.auth.currentUser;
+    if (!user) throw new Error('Sin sesión');
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, actual));
+    await updatePassword(user, nueva);
+    await updateDoc(docUsuario(user.uid), { debeCambiarClave: false, claveCambiadaEn: new Date() });
+    entroConClaveInicial = false;
+    await manejarSesion(user);
 }
 
 export function cerrarSesion() {
@@ -112,6 +136,8 @@ export async function crearUsuario({ usuario, nombre, rol, contrasena }) {
         nombre: String(nombre || '').trim(),
         rol,
         activo: true,
+        // La contraseña la eligió el administrador: la persona la cambia al entrar por primera vez.
+        debeCambiarClave: true,
         creadoEn: new Date(),
         creadoPor: state.usuario?.usuario || ''
     });

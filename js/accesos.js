@@ -1,7 +1,8 @@
 import { state } from './state.js';
 import {
-    getUserCollection, doc, updateDoc, onSnapshot,
-    ingresar, cerrarSesion, cambiarMiContrasena, crearUsuario, crearPrimerAdministrador, usuarioValido
+    getUserCollection, doc, updateDoc, setDoc, onSnapshot,
+    ingresar, cerrarSesion, cambiarMiContrasena, crearUsuario, crearPrimerAdministrador, usuarioValido,
+    guardarClaveObligatoria, CLAVE_INICIAL
 } from './firebase.js';
 import { showNotification, showAlert, showConfirm } from './ui.js';
 
@@ -39,6 +40,91 @@ const BLOQUES_INICIO = {
     prevision: 'insumos'
 };
 
+// Secciones que el administrador puede habilitar o no a cada rol (Configuración es siempre solo del administrador).
+const SECCIONES = [
+    { id: 'dashboard', label: 'Inicio', icon: 'bi-house' },
+    { id: 'insumos', label: 'Insumos', icon: 'bi-box-seam' },
+    { id: 'faltantes', label: 'Faltantes', icon: 'bi-exclamation-triangle' },
+    { id: 'horarios', label: 'Horario: planilla del día', icon: 'bi-clock' },
+    { id: 'horarios-gestion', label: 'Horario: reportes y personal', icon: 'bi-person-badge' },
+    { id: 'pagos', label: 'Pagos', icon: 'bi-cash-coin' },
+    { id: 'bobinas', label: 'Bobinas', icon: 'bi-record-circle' },
+    { id: 'contactos', label: 'Contactos', icon: 'bi-people' },
+    { id: 'control', label: 'Control', icon: 'bi-clipboard-check' },
+    { id: 'termos', label: 'Termos', icon: 'bi-layers' }
+];
+const ROLES_EDITABLES = ['rrhh', 'operario'];
+const PERMISOS_POR_DEFECTO = {
+    rrhh: ['dashboard', 'horarios', 'horarios-gestion'],
+    operario: ['dashboard', 'insumos', 'faltantes', 'bobinas', 'termos', 'control', 'horarios']
+};
+let permisosGuardados = null;
+
+// Pasa la lista de secciones habilitadas a la forma que usan los permisos de cada rol.
+function aplicarListaARol(rol, lista) {
+    ROLES[rol].paneles = lista.filter(id => id !== 'horarios-gestion');
+    ROLES[rol].pestanasHorario = lista.includes('horarios-gestion') ? null : ['diario'];
+}
+Object.entries(PERMISOS_POR_DEFECTO).forEach(([rol, lista]) => aplicarListaARol(rol, lista));
+
+const listaDeRol = rol => (permisosGuardados?.[rol] && Array.isArray(permisosGuardados[rol])) ? permisosGuardados[rol] : PERMISOS_POR_DEFECTO[rol];
+
+let escuchandoPermisos = false;
+export function escucharPermisos() {
+    if (escuchandoPermisos) return;
+    escuchandoPermisos = true;
+    onSnapshot(getUserCollection('configuracion'), snapshot => {
+        permisosGuardados = snapshot.docs.find(d => d.id === 'permisos')?.data() || null;
+        ROLES_EDITABLES.forEach(rol => aplicarListaARol(rol, listaDeRol(rol)));
+        if (state.usuario) aplicarPermisos();
+        renderizarEditorPermisos();
+        document.getElementById('nuevo-usuario-rol')?.onchange?.();
+    }, error => console.error('Error cargando permisos:', error));
+}
+
+function renderizarEditorPermisos() {
+    const tbody = document.getElementById('tabla-permisos-body');
+    if (!tbody) return;
+    tbody.innerHTML = SECCIONES.map(seccion => `
+        <tr>
+            <td><i class="bi ${seccion.icon} me-2"></i>${seccion.label}</td>
+            <td class="text-center"><div class="form-check form-switch d-inline-block m-0"><input class="form-check-input" type="checkbox" checked disabled aria-label="Administrador: ${seccion.label}"></div></td>
+            ${ROLES_EDITABLES.map(rol => `
+                <td class="text-center">
+                    <div class="form-check form-switch d-inline-block m-0">
+                        <input class="form-check-input" type="checkbox" role="switch" aria-label="${ROLES[rol].label}: ${seccion.label}"
+                            ${listaDeRol(rol).includes(seccion.id) ? 'checked' : ''}
+                            onchange="accesosCambiarPermiso('${rol}', '${seccion.id}', this.checked, this)">
+                    </div>
+                </td>`).join('')}
+        </tr>`).join('');
+}
+
+window.accesosCambiarPermiso = async function(rol, seccion, habilitar, interruptor) {
+    if (state.usuario?.rol !== 'admin' || !ROLES_EDITABLES.includes(rol)) return;
+    let lista = new Set(listaDeRol(rol));
+    if (habilitar) lista.add(seccion);
+    else lista.delete(seccion);
+    // Reportes y personal viven dentro de Horario: si se habilitan, también la planilla.
+    if (seccion === 'horarios-gestion' && habilitar) lista.add('horarios');
+    if (seccion === 'horarios' && !habilitar) lista.delete('horarios-gestion');
+    interruptor.disabled = true;
+    try {
+        await setDoc(doc(getUserCollection('configuracion'), 'permisos'), {
+            ...(permisosGuardados || PERMISOS_POR_DEFECTO),
+            [rol]: SECCIONES.map(s => s.id).filter(id => lista.has(id)),
+            actualizadoEn: new Date()
+        });
+        showNotification(`${ROLES[rol].label}: ${habilitar ? 'ahora ve' : 'ya no ve'} ${SECCIONES.find(s => s.id === seccion).label}.`, 'info', 2500);
+    } catch (e) {
+        console.error('Error guardando permisos:', e);
+        showAlert('No se pudo guardar el permiso.', 'danger');
+        renderizarEditorPermisos();
+    } finally {
+        interruptor.disabled = false;
+    }
+};
+
 const rolActual = () => ROLES[state.usuario?.rol] || null;
 
 window.puedeVerPanel = function(panelId) {
@@ -48,7 +134,10 @@ window.puedeVerPanel = function(panelId) {
 };
 
 window.panelInicialPermitido = function() {
-    return rolActual()?.inicio || 'dashboard';
+    const rol = rolActual();
+    if (!rol || rol.paneles === '*') return 'dashboard';
+    if (rol.paneles.includes(rol.inicio)) return rol.inicio;
+    return rol.paneles[0] || 'dashboard';
 };
 
 window.pestanaHorarioPermitida = function(tab) {
@@ -107,9 +196,61 @@ function mostrarErrorIngreso(mensaje) {
     error.hidden = !mensaje;
 }
 
+// Contraseña escrita en este ingreso: si es la inicial, el cambio obligatorio no la vuelve a pedir.
+let claveRecienIngresada = '';
+
+export function mostrarCambioClaveObligatorio(perfil) {
+    document.body.classList.add('sin-sesion');
+    document.getElementById('pantalla-ingreso').hidden = false;
+    document.getElementById('formIngreso').hidden = true;
+    const form = document.getElementById('formCambioObligatorio');
+    form.hidden = false;
+    form.reset();
+    document.getElementById('cambio-obligatorio-nombre').textContent = perfil.nombre || perfil.usuario;
+    const conocida = !!claveRecienIngresada;
+    document.getElementById('cambio-obligatorio-actual-grupo').hidden = conocida;
+    document.getElementById('cambio-obligatorio-actual').required = !conocida;
+    document.getElementById('cambio-obligatorio-error').hidden = true;
+    setTimeout(() => document.getElementById(conocida ? 'cambio-obligatorio-nueva' : 'cambio-obligatorio-actual')?.focus(), 50);
+}
+
+window.accesosGuardarClaveNueva = async function() {
+    const error = document.getElementById('cambio-obligatorio-error');
+    const mostrar = texto => { error.textContent = texto; error.hidden = !texto; };
+    const actual = claveRecienIngresada || document.getElementById('cambio-obligatorio-actual').value;
+    const nueva = document.getElementById('cambio-obligatorio-nueva').value;
+    const repetir = document.getElementById('cambio-obligatorio-repetir').value;
+    if (nueva.length < 6) return mostrar('La contraseña tiene que tener al menos 6 caracteres.');
+    if (nueva === CLAVE_INICIAL || nueva === actual) return mostrar('Elegí una contraseña distinta de la inicial.');
+    if (nueva !== repetir) return mostrar('Las dos contraseñas no coinciden.');
+
+    const boton = document.getElementById('cambio-obligatorio-boton');
+    boton.disabled = true;
+    mostrar('');
+    try {
+        await guardarClaveObligatoria(actual, nueva);
+        claveRecienIngresada = '';
+        document.getElementById('formCambioObligatorio').hidden = true;
+        showNotification('Listo, ya tenés tu propia contraseña.', 'success');
+    } catch (e) {
+        console.error('Error guardando la contraseña nueva:', e);
+        mostrar(/invalid-credential|wrong-password/.test(e?.code || '') ? 'La contraseña actual no es correcta.' : mensajeDeError(e));
+    } finally {
+        boton.disabled = false;
+    }
+};
+
+window.accesosSalirSinCambiar = async function() {
+    claveRecienIngresada = '';
+    await cerrarSesion();
+    location.reload();
+};
+
 export function mostrarIngreso(mensaje = '') {
     document.body.classList.add('sin-sesion');
     document.getElementById('pantalla-ingreso').hidden = false;
+    document.getElementById('formIngreso').hidden = false;
+    document.getElementById('formCambioObligatorio').hidden = true;
     document.getElementById('usuario-menu').hidden = true;
     mostrarErrorIngreso(mensaje);
     setTimeout(() => document.getElementById(modoPrimerAdmin ? 'ingreso-nombre' : 'ingreso-usuario')?.focus(), 50);
@@ -168,6 +309,7 @@ window.accesosIngresar = async function() {
             modoPrimerAdmin = true;
             window.accesosAlternarPrimerAdmin();
         } else {
+            claveRecienIngresada = contrasena;
             await ingresar(usuario, contrasena);
         }
     } catch (error) {
@@ -229,10 +371,16 @@ function opcionesRol(seleccionado) {
 }
 
 window.accesosRenderizarUsuarios = function() {
+    renderizarEditorPermisos();
     const selectRol = document.getElementById('nuevo-usuario-rol');
     if (selectRol && !selectRol.options.length) {
         selectRol.innerHTML = opcionesRol('operario');
-        selectRol.onchange = () => { document.getElementById('nuevo-usuario-rol-ayuda').textContent = ROLES[selectRol.value].descripcion; };
+        selectRol.onchange = () => {
+            const rol = selectRol.value;
+            document.getElementById('nuevo-usuario-rol-ayuda').textContent = rol === 'admin'
+                ? ROLES.admin.descripcion
+                : `Ve: ${SECCIONES.filter(s => listaDeRol(rol).includes(s.id)).map(s => s.label).join(', ') || 'ninguna sección'}. Se cambia abajo, en "Qué ve cada rol".`;
+        };
         selectRol.onchange();
     }
 

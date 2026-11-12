@@ -38,14 +38,49 @@ async function obtenerHistorial() {
     if (cache && Date.now() - cache.ts < CACHE_TTL) return cache.data;
     if (historialEnCurso) return historialEnCurso;
 
-    historialEnCurso = getDocs(getUserCollection('historial'))
-        .then(snap => {
-            const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    historialEnCurso = Promise.all([
+        getDocs(getUserCollection('historial')),
+        getDocs(getUserCollection('controlHistorial')).catch(e => { console.error('No se pudo leer el historial de controles:', e); return { docs: [] }; })
+    ])
+        .then(([snapHistorial, snapControles]) => {
+            const data = [
+                ...snapHistorial.docs.map(d => ({ id: d.id, ...d.data() })),
+                ...movimientosDeControles(snapControles.docs.map(d => d.data()))
+            ];
             state._historialCache = { data, ts: Date.now() };
             return data;
         })
         .finally(() => { historialEnCurso = null; });
     return historialEnCurso;
+}
+
+/**
+ * Los controles de stock viejos actualizaban la cantidad sin dejar movimiento en el historial.
+ * Cada artículo contado guarda cuánto había en el sistema y cuánto se contó: esa diferencia es el
+ * consumo (o la reposición) desde el control anterior. Los controles nuevos ya anotan el movimiento,
+ * así que se saltean para no contarlos dos veces.
+ */
+function movimientosDeControles(controles) {
+    const movimientos = [];
+    controles.forEach(control => {
+        if (control.movimientosRegistrados || !Array.isArray(control.items)) return;
+        control.items.forEach(it => {
+            if (it.tipo !== 'articulo' || !it.articuloId) return;
+            const anterior = Number(it.cantidadAnterior);
+            const nuevo = Number(it.cantidadContada);
+            if (it.cantidadAnterior === null || it.cantidadContada === null || isNaN(anterior) || isNaN(nuevo) || anterior === nuevo) return;
+            movimientos.push({
+                idArticulo: it.articuloId,
+                fecha: control.fecha,
+                tipo: nuevo < anterior ? 'Salida' : 'Entrada',
+                cantidad: Math.abs(nuevo - anterior),
+                stockAnterior: anterior,
+                stockNuevo: nuevo,
+                origen: 'control'
+            });
+        });
+    });
+    return movimientos;
 }
 
 // La variación real de stock manda sobre la cantidad escrita: si se retiró más de lo que había, el stock solo bajó hasta 0.

@@ -659,15 +659,34 @@ window.controlCompletarEjecucion = async function() {
         return;
     }
 
+    const fechaControl = new Date();
     try {
         const articulosAActualizar = items.filter(it => it.tipo === 'articulo' && it.articuloId);
         if (articulosAActualizar.length > 0) {
             const batch = writeBatch(state.db);
             articulosAActualizar.forEach(it => {
                 const artRef = doc(getUserCollection('inventario'), it.articuloId);
-                batch.update(artRef, { cantidadActual: Number(it.cantidadContada) });
+                const nuevo = Number(it.cantidadContada);
+                batch.update(artRef, { cantidadActual: nuevo });
+                // La diferencia con el stock del sistema es el consumo (o la reposición) de la semana:
+                // se anota en el historial para que el análisis calcule los días restantes.
+                const anterior = Number(state.inventarioData.find(a => a.id === it.articuloId)?.cantidadActual ?? it.cantidadActual);
+                if (!isNaN(anterior) && anterior !== nuevo) {
+                    batch.set(doc(getUserCollection('historial')), {
+                        idArticulo: it.articuloId,
+                        fecha: fechaControl,
+                        tipo: nuevo < anterior ? 'Salida' : 'Entrada',
+                        cantidad: Math.abs(nuevo - anterior),
+                        stockAnterior: anterior,
+                        stockNuevo: nuevo,
+                        responsable: state.usuario?.nombre || state.usuario?.usuario || '',
+                        notas: `Control: ${state.controlEjecucionActual.nombre || ''}`.trim(),
+                        origen: 'control'
+                    });
+                }
             });
             await batch.commit();
+            state._historialCache = null;
         }
     } catch (e) {
         console.error(e);
@@ -678,7 +697,9 @@ window.controlCompletarEjecucion = async function() {
     const ejecucion = {
         formularioId: state.controlEjecucionActual.formularioId,
         formularioNombre: state.controlEjecucionActual.nombre,
-        fecha: new Date(),
+        fecha: fechaControl,
+        // Sus diferencias de stock ya quedaron en el historial: el análisis no las vuelve a contar.
+        movimientosRegistrados: true,
         items: items.map(it => {
             const base = {
                 tipo: it.tipo,

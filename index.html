@@ -59,6 +59,29 @@
             <button type="submit" class="btn btn-primary w-100" id="ingreso-boton">Ingresar</button>
             <button type="button" class="ingreso-alternar" id="ingreso-alternar" onclick="accesosAlternarPrimerAdmin()">Primera vez: crear el administrador</button>
         </form>
+
+        <!-- Primer ingreso con la contraseña inicial: hay que elegir una propia antes de seguir -->
+        <form class="ingreso-tarjeta" id="formCambioObligatorio" onsubmit="event.preventDefault(); accesosGuardarClaveNueva();" hidden>
+            <div class="ingreso-marca"><i class="bi bi-shield-lock"></i><strong>Indupak</strong><span>Logística &amp; Control</span></div>
+            <h1 class="ingreso-titulo">Elegí tu contraseña</h1>
+            <p class="ingreso-ayuda">Hola <strong id="cambio-obligatorio-nombre"></strong>. Estás usando la contraseña inicial: antes de seguir, elegí una propia que solo sepas vos.</p>
+            <div class="mb-2" id="cambio-obligatorio-actual-grupo">
+                <label class="form-label" for="cambio-obligatorio-actual">Contraseña actual</label>
+                <input type="password" class="form-control" id="cambio-obligatorio-actual" autocomplete="current-password">
+            </div>
+            <div class="mb-2">
+                <label class="form-label" for="cambio-obligatorio-nueva">Nueva contraseña</label>
+                <input type="password" class="form-control" id="cambio-obligatorio-nueva" minlength="6" autocomplete="new-password" required>
+                <div class="form-text cfg-ayuda">Mínimo 6 caracteres y distinta de la inicial.</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="cambio-obligatorio-repetir">Repetila</label>
+                <input type="password" class="form-control" id="cambio-obligatorio-repetir" minlength="6" autocomplete="new-password" required>
+            </div>
+            <div class="ingreso-error" id="cambio-obligatorio-error" role="alert" hidden></div>
+            <button type="submit" class="btn btn-primary w-100" id="cambio-obligatorio-boton">Guardar y entrar</button>
+            <button type="button" class="ingreso-alternar" onclick="accesosSalirSinCambiar()">Salir</button>
+        </form>
     </div>
 
     <!-- Menú del usuario -->
@@ -1359,6 +1382,20 @@
                         </div>
                     </div>
                     <div class="card-footer text-muted small">Para cambiar la contraseña de otra persona, desactivá su usuario y creale uno nuevo.</div>
+                </div>
+            </div>
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-header"><h5 class="card-title mb-0"><i class="bi bi-toggles me-2"></i>Qué ve cada rol</h5></div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0 tabla-permisos">
+                                <thead><tr><th>Sección</th><th class="text-center">Administrador</th><th class="text-center">RRHH</th><th class="text-center">Operario</th></tr></thead>
+                                <tbody id="tabla-permisos-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer text-muted small">Los cambios se aplican al instante, también a quien tenga la web abierta. Configuración y Usuarios son siempre solo del administrador.</div>
                 </div>
             </div>
         </div>

@@ -3,8 +3,10 @@ import { formatCantidad, parseCantidad } from './ui.js';
 import { obtenerDiasRestantes, diasRestantesEnCache, badgeDiasRestantes } from './analisis.js';
 
 const SIN_PROVEEDOR = 'Sin Proveedor Asignado';
-// Orden de la tabla: se aplica dentro de cada proveedor, así los artículos nunca se separan de su grupo.
-let ordenCompras = { columna: 'nombre', asc: true };
+// Sin orden elegido, la lista va agrupada por proveedor. Al tocar un título se desarma la agrupación
+// y toda la lista se ordena por esa columna; "Agrupar por proveedor" vuelve a la vista inicial.
+let ordenCompras = null;
+const TITULOS_ORDEN = { nombre: 'Artículo', stock: 'Stock actual', minimo: 'Stock mínimo', comprar: 'Cantidad a comprar', unidad: 'Unidad', dias: 'Días restantes' };
 let diasRestantes = null;
 let calculandoDias = false;
 
@@ -64,27 +66,46 @@ const VALOR_ORDEN = {
 };
 
 function compararArticulos(a, b) {
-    const valor = VALOR_ORDEN[ordenCompras.columna] || VALOR_ORDEN.nombre;
+    const orden = ordenCompras || { columna: 'nombre', asc: true };
+    const valor = VALOR_ORDEN[orden.columna] || VALOR_ORDEN.nombre;
     const va = valor(a);
     const vb = valor(b);
-    const resultado = typeof va === 'string' ? va.localeCompare(vb, 'es', { numeric: true }) : va - vb;
-    return (ordenCompras.asc ? resultado : -resultado) || String(a.nombre).localeCompare(String(b.nombre), 'es');
+    // Infinity - Infinity da NaN: dos artículos sin estimación quedan empatados.
+    const resultado = typeof va === 'string' ? va.localeCompare(vb, 'es', { numeric: true }) : (va === vb ? 0 : va - vb);
+    return (orden.asc ? resultado : -resultado) || String(a.nombre).localeCompare(String(b.nombre), 'es');
 }
 
 window.ordenarCompras = function(columna) {
-    ordenCompras = ordenCompras.columna === columna
+    ordenCompras = ordenCompras?.columna === columna
         ? { columna, asc: !ordenCompras.asc }
         : { columna, asc: true };
     renderizarPanelCompras();
 };
 
+window.agruparComprasPorProveedor = function() {
+    ordenCompras = null;
+    renderizarPanelCompras();
+};
+
 function marcarEncabezadosOrden() {
     document.querySelectorAll('#comprasTable thead th[data-orden]').forEach(th => {
-        const activa = th.dataset.orden === ordenCompras.columna;
+        const activa = th.dataset.orden === ordenCompras?.columna;
         th.classList.toggle('sort-asc', activa && ordenCompras.asc);
         th.classList.toggle('sort-desc', activa && !ordenCompras.asc);
         th.setAttribute('aria-sort', activa ? (ordenCompras.asc ? 'ascending' : 'descending') : 'none');
     });
+}
+
+function filaArticulo(item, conProveedor) {
+    return `
+        <tr class="${item.cantidadActual <= item.stockMinimo ? 'table-danger' : ''}">
+            <td><strong>${escapeHtml(item.nombre)}</strong>${conProveedor ? `<br><small class="text-muted"><i class="bi bi-shop me-1"></i>${escapeHtml(item.proveedorNombre)}</small>` : item.descripcion ? `<br><small class="text-muted">${escapeHtml(item.descripcion)}</small>` : ''}</td>
+            <td class="text-end">${formatCantidad(item.cantidadActual)}</td>
+            <td class="text-end">${formatCantidad(item.stockMinimo)}</td>
+            <td class="text-end">${formatCantidad(item.cantidadNecesaria)}</td>
+            <td>${escapeHtml(item.unidadNombre)}</td>
+            <td class="text-end">${badgeDiasRestantes(item.dias, parseCantidad(item.cantidadActual))}</td>
+        </tr>`;
 }
 
 /**
@@ -112,6 +133,16 @@ export function renderizarPanelCompras() {
     marcarEncabezadosOrden();
     if (articulos.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No hay artículos con stock bajo que requieran compra.</td></tr>';
+    } else if (ordenCompras) {
+        // Ordenado por una columna: una sola lista, con el proveedor debajo de cada artículo.
+        tbody.innerHTML = `
+            <tr class="compras-fila-orden">
+                <td colspan="6" class="small py-2">
+                    <i class="bi bi-sort-${ordenCompras.asc ? 'down' : 'up'} me-1"></i>Ordenado por <strong>${TITULOS_ORDEN[ordenCompras.columna]}</strong>
+                    <button type="button" class="btn btn-link btn-sm p-0 ms-2 align-baseline" onclick="agruparComprasPorProveedor()"><i class="bi bi-shop me-1"></i>Volver a agrupar por proveedor</button>
+                </td>
+            </tr>
+            ${[...articulos].sort(compararArticulos).map(item => filaArticulo(item, true)).join('')}`;
     } else {
         tbody.innerHTML = proveedores.map(proveedor => `
             <tr class="table-active compras-fila-proveedor">
@@ -119,15 +150,7 @@ export function renderizarPanelCompras() {
                     <i class="bi bi-shop me-2"></i> ${escapeHtml(proveedor)}
                 </td>
             </tr>
-            ${grupos.get(proveedor).sort(compararArticulos).map(item => `
-                <tr class="${item.cantidadActual <= item.stockMinimo ? 'table-danger' : ''}">
-                    <td><strong>${escapeHtml(item.nombre)}</strong><br><small class="text-muted">${escapeHtml(item.descripcion || '')}</small></td>
-                    <td class="text-end">${formatCantidad(item.cantidadActual)}</td>
-                    <td class="text-end">${formatCantidad(item.stockMinimo)}</td>
-                    <td class="text-end">${formatCantidad(item.cantidadNecesaria)}</td>
-                    <td>${escapeHtml(item.unidadNombre)}</td>
-                    <td class="text-end">${badgeDiasRestantes(item.dias, parseCantidad(item.cantidadActual))}</td>
-                </tr>`).join('')}`).join('');
+            ${grupos.get(proveedor).sort(compararArticulos).map(item => filaArticulo(item, false)).join('')}`).join('');
     }
     if (state.elements.footerCompras) {
         state.elements.footerCompras.innerText = `${articulos.length} artículo(s) con stock bajo. Días restantes según el consumo desde el 01/06/2026.`;

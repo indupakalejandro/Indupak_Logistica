@@ -8,7 +8,7 @@ import { renderizarPanelComisionistas, renderLocalidadesCheckboxes } from './com
 import { renderizarListaCategorias, renderizarListaUnidadesMedida, renderizarListaRoles, renderizarListaLocalidades, renderizarListaProveedoresPlastico } from './configuracion.js';
 import { renderizarPanelCompras } from './compras.js';
 import { renderizarTablaFaltantes, escucharHistorialFaltantes } from './faltantes.js';
-import { mostrarIngreso, ocultarIngreso, aplicarPermisos, escucharUsuarios } from './accesos.js';
+import { mostrarIngreso, ocultarIngreso, aplicarPermisos, escucharUsuarios, mostrarCambioClaveObligatorio, escucharPermisos } from './accesos.js';
 import { renderizarPanelPagos, actualizarDropdownProveedoresPlastico } from './pagos.js';
 import { setupControlListeners, controlRestaurarDesdeLocal, controlMostrarLista } from './control.js';
 import { renderizarTablaAnalisis } from './analisis.js';
@@ -378,9 +378,11 @@ initFirebase(function onAuthReady() {
 }, {
     alSinSesion: () => mostrarIngreso(),
     alRechazar: mensaje => mostrarIngreso(mensaje),
+    alDebeCambiarClave: perfil => mostrarCambioClaveObligatorio(perfil),
     alIngresar: () => {
         ocultarIngreso();
         aplicarPermisos();
+        escucharPermisos();
         escucharUsuarios();
     }
 });

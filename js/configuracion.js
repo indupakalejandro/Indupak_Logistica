@@ -1,7 +1,6 @@
 import { state } from './state.js';
-import { getUserCollection, doc, getDoc, addDoc, updateDoc, deleteDoc } from './firebase.js';
+import { getUserCollection, doc, addDoc, updateDoc, deleteDoc } from './firebase.js';
 import { renderizarConfigHorario } from './horarios.js';
-import { migrarBobinasDesdeBaseVieja } from './bobinas.js';
 
 const ordenarPorNombre = lista => [...lista].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'es'));
 
@@ -12,48 +11,6 @@ window.switchConfiguracionTab = function(tab) {
     });
     if (tab === 'horario') renderizarConfigHorario();
     if (tab === 'usuarios') window.accesosRenderizarUsuarios?.();
-    if (tab === 'sistema') mostrarEstadoMigracionBobinas();
-};
-
-// ---- Bobinas: copia única desde la base vieja (abierta) a la principal (protegida) ----
-async function mostrarEstadoMigracionBobinas() {
-    const estado = document.getElementById('bobinas-migracion-estado');
-    if (!estado) return;
-    try {
-        const registro = await getDoc(doc(getUserCollection('configuracion'), 'bobinasMigracion'));
-        if (!registro.exists()) {
-            estado.innerHTML = '<i class="bi bi-exclamation-circle text-warning me-1"></i>Todavía no se copiaron.';
-            return;
-        }
-        const { fecha, por, resultado } = registro.data();
-        const cuando = (fecha?.toDate ? fecha.toDate() : new Date(fecha)).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-        estado.innerHTML = `<i class="bi bi-check-circle-fill text-success me-1"></i>Copiados el ${cuando}${por ? ` por ${por}` : ''}: ${resultado?.inventario?.enLaVieja ?? 0} bobinas y ${resultado?.historial?.enLaVieja ?? 0} movimientos. Ya podés cerrar la base vieja.`;
-    } catch (e) {
-        console.error('Error leyendo la migración de bobinas:', e);
-        estado.textContent = '';
-    }
-}
-
-window.configMigrarBobinas = function() {
-    window.showConfirm('¿Copiar ahora los datos de Bobinas a la base protegida?<br><small>No se borra nada. Si algo ya estaba copiado, no se duplica.</small>', async ok => {
-        if (!ok) return;
-        const boton = document.getElementById('bobinas-migracion-boton');
-        boton.disabled = true;
-        boton.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Copiando…';
-        try {
-            const r = await migrarBobinasDesdeBaseVieja();
-            window.showNotification(`Bobinas copiadas: ${r.inventario.copiados} bobinas y ${r.historial.copiados} movimientos nuevos.`, 'success');
-            await mostrarEstadoMigracionBobinas();
-        } catch (e) {
-            console.error('Error copiando bobinas:', e);
-            window.showAlert(/admin-restricted|operation-not-allowed/.test(e?.code || '')
-                ? 'La base vieja ya no permite entrar: no hay nada para copiar desde acá.'
-                : 'No se pudieron copiar los datos de Bobinas. Revisá la conexión y volvé a intentar.', 'danger');
-        } finally {
-            boton.disabled = false;
-            boton.innerHTML = '<i class="bi bi-arrow-left-right me-1"></i>Copiar datos de Bobinas';
-        }
-    });
 };
 
 /**

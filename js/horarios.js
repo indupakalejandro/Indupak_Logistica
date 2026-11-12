@@ -268,9 +268,17 @@ function proximaMarca(reg, hora) {
     const descansos = descansosDe(reg);
     if (descansoEnCurso(descansos)) return 'fin_descanso';
     const transcurrido = minutosDesdeEntrada(reg.entrada, hora);
-    if (!descansos.length && transcurrido >= configHorario.descansoDesdeHs * 60 && transcurrido <= LIMITE_JORNADA_MIN) return 'descanso';
+    // En los últimos minutos del turno (o después) la marca ya es la salida, no un descanso.
+    const finTurno = salidaProgramadaDe(reg);
+    const cierreTurno = finTurno ? minutosDesdeEntrada(reg.entrada, finTurno) - SIN_DESCANSO_ANTES_DE_SALIDA_MIN : LIMITE_JORNADA_MIN;
+    if (!descansos.length
+        && transcurrido >= configHorario.descansoDesdeHs * 60
+        && transcurrido < cierreTurno
+        && transcurrido <= LIMITE_JORNADA_MIN) return 'descanso';
     return 'salida';
 }
+// Desde estos minutos antes de la hora de salida del turno, marcar ya no inicia un descanso sino la salida.
+const SIN_DESCANSO_ANTES_DE_SALIDA_MIN = 30;
 
 const ACCIONES_MARCA = {
     descanso: { label: 'Descanso', icon: 'bi-cup-hot', css: 'btn-outline-info' },
@@ -1176,6 +1184,15 @@ function textoDescansos(r) {
     return descansosDe(r).map(d => d.fin ? `Descanso ${d.inicio} a ${d.fin}` : `Descanso desde ${d.inicio}, sin cerrar`).join(' · ');
 }
 
+// Minutos de descanso del día; si quedó abierto (no se marcó la vuelta), se avisa.
+function htmlMinutosDescanso(r) {
+    const descansos = descansosDe(r);
+    if (!r.entrada || !descansos.length) return '—';
+    const minutos = minutosDescansoDe(r.entrada, descansos);
+    if (descansoEnCurso(descansos)) return `<span class="badge badge-asistencia-pendiente" title="Empezó a las ${escapeHtml(descansos[descansos.length - 1].inicio)} y no se marcó la vuelta">Sin cerrar</span>`;
+    return `<span class="badge badge-asistencia-justificada">${minutos} min</span>`;
+}
+
 function htmlHorario(r) {
     if (!r.entrada || !r.salida) return '—';
     const sinMarcar = esPresencia(r.estado) && !r.salidaMarcada && !salidaEnCurso(salidasDe(r));
@@ -1203,7 +1220,7 @@ function renderizarHistorialReporte(registros) {
     footer.textContent = `${visibles.length} de ${registros.length} día(s) cargados en el período.`;
 
     if (visibles.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="hor-vacio">${registros.length ? 'No hay días con este filtro.' : 'Sin registros en el período seleccionado.'}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="hor-vacio">${registros.length ? 'No hay días con este filtro.' : 'Sin registros en el período seleccionado.'}</td></tr>`;
         return;
     }
 
@@ -1221,6 +1238,7 @@ function renderizarHistorialReporte(registros) {
                 <td data-label="Horas" class="text-end">${formatCantidad(r.horasTrabajadas, 2)} hs</td>
                 <td data-label="Extras" class="text-end">${extras > 0 ? `<span class="badge badge-extra-horas">+${formatCantidad(extras, 2)} hs</span>` : '—'}</td>
                 <td data-label="Tardanza" class="text-center">${tarde > 0 ? `<span class="badge badge-asistencia-tarde">${formatearMinutos(tarde)}</span>` : tolerancia > 0 ? `<span class="badge badge-asistencia-tolerancia">${formatearMinutos(tolerancia)}</span>` : '—'}</td>
+                <td data-label="Descanso" class="text-center">${htmlMinutosDescanso(r)}</td>
                 <td data-label="Observaciones">${r.observaciones || r.motivo || !salidasDe(r).length ? `<small>${escapeHtml(r.observaciones || r.motivo || '—')}</small>` : ''}${htmlSalidas(salidasDe(r))}</td>
                 <td class="text-center">
                     <button class="btn btn-sm btn-outline-primary py-0 px-2" title="Editar registro" aria-label="Editar registro del ${formatearFechaCorta(r.fecha)}" onclick="horariosAbrirModalEditarAsistencia('${r.id}')">

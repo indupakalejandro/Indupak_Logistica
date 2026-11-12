@@ -1,19 +1,8 @@
 import { state } from './state.js';
-import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import {
-    getFirestore, collection, doc, getDoc, setDoc,
+    collection, doc, getDoc, setDoc,
     addDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-const BOBINAS_CONFIG = {
-    apiKey: "AIzaSyCdmN2-46flKUuoddEtIzVtZ--egy46ON4",
-    authDomain: "inventariopp-f4689.firebaseapp.com",
-    projectId: "inventariopp-f4689",
-    storageBucket: "inventariopp-f4689.firebasestorage.app",
-    messagingSenderId: "683549201271",
-    appId: "1:683549201271:web:d02e542ea0a7df39b30772"
-};
 
 let bDb, bUserId;
 let bInventarioReady = false;
@@ -350,7 +339,7 @@ export function renderizarBobinasPanel() {
 
 // ── Firebase init & listeners ────────────────────────────────────────────────
 // Bobinas vive en la base principal, protegida por usuario y contraseña como el resto.
-// (Antes usaba otra base con ingreso anónimo: cualquiera con el código podía leerla y modificarla.)
+// (Antes usaba otra base con ingreso anónimo; sus datos ya se copiaron acá.)
 const RUTAS_BOBINAS = {
     inventario: 'artifacts/default-app-id/bobinasInventario',
     historial: 'artifacts/default-app-id/bobinasHistorial',
@@ -366,36 +355,6 @@ export function initBobinas() {
     bDb = state.db;
     bUserId = state.userId;
     _setupListeners();
-}
-
-/**
- * Copia una sola vez los datos de la base vieja de Bobinas a la principal, con los mismos identificadores.
- * Hace falta que la base vieja todavía permita el ingreso anónimo; después conviene cerrarla.
- */
-export async function migrarBobinasDesdeBaseVieja() {
-    const existente = getApps().find(a => a.name === 'bobinas-vieja');
-    const appVieja = existente || initializeApp(BOBINAS_CONFIG, 'bobinas-vieja');
-    await signInAnonymously(getAuth(appVieja));
-    const dbVieja = getFirestore(appVieja);
-
-    const resultado = {};
-    for (const nombre of ['inventario', 'historial']) {
-        const snap = await getDocs(collection(dbVieja, nombre));
-        const yaCopiados = new Set((await getDocs(colB(nombre))).docs.map(d => d.id));
-        let copiados = 0;
-        for (const d of snap.docs) {
-            if (yaCopiados.has(d.id)) continue;
-            await setDoc(docB(nombre, d.id), d.data());
-            copiados++;
-        }
-        resultado[nombre] = { enLaVieja: snap.size, copiados, yaEstaban: snap.size - copiados };
-    }
-    await setDoc(doc(bDb, 'artifacts/default-app-id/configuracion', 'bobinasMigracion'), {
-        fecha: new Date(),
-        por: state.usuario?.usuario || '',
-        resultado
-    });
-    return resultado;
 }
 
 function _setupListeners() {

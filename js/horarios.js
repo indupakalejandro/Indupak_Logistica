@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { getUserCollection, doc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, writeBatch } from './firebase.js';
+import { getUserCollection, doc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, query, where, runTransaction } from './firebase.js';
 import { showNotification, showAlert, showConfirm, parseCantidad, formatCantidad, panelHandlers, marcarBloqueListo } from './ui.js';
 
 // ---- Reglas del módulo ----
@@ -162,12 +162,14 @@ function turnoParaHora(hhmm) {
     };
 }
 
-function jornadaActual() {
-    const ahora = new Date();
-    const hora = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
+// Jornada, turno y hora de un momento dado (por defecto, ahora). El lector usa la hora real de cada marca.
+function jornadaEn(momento) {
+    const hora = `${String(momento.getHours()).padStart(2, '0')}:${String(momento.getMinutes()).padStart(2, '0')}`;
     const turno = turnoParaHora(hora);
-    return { hora, turno, fecha: turno.esDelDiaAnterior ? sumarDias(fechaISO(ahora), -1) : fechaISO(ahora) };
+    return { hora, turno, fecha: turno.esDelDiaAnterior ? sumarDias(fechaISO(momento), -1) : fechaISO(momento) };
 }
+
+const jornadaActual = () => jornadaEn(new Date());
 
 // Horas normales y extras propuestas. Llegar antes de la entrada no suma horas.
 function calcularHoras(entrada, salida) {
@@ -338,19 +340,21 @@ function ordenarPorNombre(lista) {
 }
 
 // Una llegada dentro de la tolerancia nunca es tarde, aunque se haya registrado antes de ampliarla.
-function aplicarToleranciaVigente() {
+function conToleranciaVigente(reg) {
     const { toleranciaMin, jornadaHs } = configHorario;
-    state.asistenciaData = asistenciaGuardada.map(reg => {
-        const minutos = parseCantidad(reg.minutosTarde);
-        if (reg.estado !== 'tarde' || minutos <= 0 || minutos > toleranciaMin) return reg;
-        return {
-            ...reg,
-            estado: 'tolerancia',
-            minutosTarde: 0,
-            minutosTolerancia: minutos,
-            horasTrabajadas: Number(Math.min(jornadaHs, parseCantidad(reg.horasTrabajadas) + minutos / 60).toFixed(2))
-        };
-    });
+    const minutos = parseCantidad(reg.minutosTarde);
+    if (reg.estado !== 'tarde' || minutos <= 0 || minutos > toleranciaMin) return reg;
+    return {
+        ...reg,
+        estado: 'tolerancia',
+        minutosTarde: 0,
+        minutosTolerancia: minutos,
+        horasTrabajadas: Number(Math.min(jornadaHs, parseCantidad(reg.horasTrabajadas) + minutos / 60).toFixed(2))
+    };
+}
+
+function aplicarToleranciaVigente() {
+    state.asistenciaData = asistenciaGuardada.map(conToleranciaVigente);
 }
 
 // ---- Inicialización y Listeners Firestore ----
@@ -358,6 +362,7 @@ export function setupHorariosListeners() {
     onSnapshot(getUserCollection('personal'), snapshot => {
         state.operariosData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         personalCargado = true;
+        procesarMarcasLector();
         if (state.currentActivePanel === 'horarios') renderizarHorariosPanel();
         if (state.currentActivePanel === 'dashboard') panelHandlers['dashboardPersonal']?.();
     }, error => {
@@ -369,6 +374,7 @@ export function setupHorariosListeners() {
         asistenciaGuardada = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         aplicarToleranciaVigente();
         asistenciaCargada = true;
+        procesarMarcasLector();
         if (state.currentActivePanel === 'horarios') renderizarHorariosPanel();
         if (state.currentActivePanel === 'dashboard') panelHandlers['dashboardPersonal']?.();
     }, error => {
@@ -382,6 +388,7 @@ export function setupHorariosListeners() {
         configHorario = { ...CONFIG_HORARIO_POR_DEFECTO, ...guardada };
         configCargada = true;
         aplicarToleranciaVigente();
+        procesarMarcasLector();
         renderizarConfigHorario();
         if (state.currentActivePanel === 'horarios') renderizarHorariosPanel();
         if (state.currentActivePanel === 'dashboard') panelHandlers['dashboardPersonal']?.();
@@ -392,6 +399,7 @@ export function setupHorariosListeners() {
         if (state.currentActivePanel === 'horarios') renderizarHorariosPanel();
     });
 
+    escucharMarcasLector();
     setInterval(actualizarRelojPlanilla, 1000);
 }
 
@@ -593,7 +601,8 @@ const operariosMarcando = new Set();
 // Dos marcas seguidas dentro de este lapso son el mismo gesto (doble toque en el lector): se ignora la segunda.
 const MARCA_REPETIDA_MS = 2 * 60 * 1000;
 
-async function aplicarMarca(reg, hora) {
+// Qué cambia en el registro con una marca a esta hora, sin guardarlo. null si la jornada ya está cerrada.
+function cambiosDeMarca(reg, hora) {
     const accion = proximaMarca(reg, hora);
     if (!accion || accion === 'entrada') return null;
 
@@ -609,16 +618,26 @@ async function aplicarMarca(reg, hora) {
     }
 
     const datos = datosJornada(reg, cambios);
-    await updateDoc(doc(getUserCollection('asistencia'), reg.id), {
-        ...datos,
-        // Se guarda la clasificación vigente de la llegada para que las horas no se ajusten dos veces.
-        estado: reg.estado,
-        minutosTarde: parseCantidad(reg.minutosTarde),
-        minutosTolerancia: parseCantidad(reg.minutosTolerancia),
-        ultimaMarca: Date.now(),
-        actualizadoEn: new Date()
-    });
-    return { accion, datos };
+    return {
+        accion,
+        datos,
+        guardar: {
+            ...datos,
+            // Se guarda la clasificación vigente de la llegada para que las horas no se ajusten dos veces.
+            estado: reg.estado,
+            minutosTarde: parseCantidad(reg.minutosTarde),
+            minutosTolerancia: parseCantidad(reg.minutosTolerancia),
+            ultimaMarca: Date.now(),
+            actualizadoEn: new Date()
+        }
+    };
+}
+
+async function aplicarMarca(reg, hora) {
+    const resultado = cambiosDeMarca(reg, hora);
+    if (!resultado) return null;
+    await updateDoc(doc(getUserCollection('asistencia'), reg.id), resultado.guardar);
+    return resultado;
 }
 
 function mensajeMarca(nombre, accion, hora, datos) {
@@ -887,22 +906,25 @@ async function registrarEnJornada(operarioId, armarDatos) {
     }
 }
 
+function datosEntrada({ hora, turno }) {
+    return {
+        estado: turno.estado,
+        turno: turno.nombre,
+        entrada: hora,
+        salida: turno.salida,
+        horasTrabajadas: Number(Math.max(0, configHorario.jornadaHs - turno.minutosTarde / 60).toFixed(2)),
+        minutosTarde: turno.minutosTarde,
+        minutosTolerancia: turno.minutosTolerancia,
+        horasExtras: 0,
+        ultimaMarca: Date.now()
+    };
+}
+
 window.horariosRegistrarEntrada = function(operarioId) {
     registrarEnJornada(operarioId, ({ hora, turno }) => {
-        const tarde = turno.minutosTarde;
         const descripcion = describirLlegada(turno);
         return {
-            datos: {
-                estado: turno.estado,
-                turno: turno.nombre,
-                entrada: hora,
-                salida: turno.salida,
-                horasTrabajadas: Number(Math.max(0, configHorario.jornadaHs - tarde / 60).toFixed(2)),
-                minutosTarde: tarde,
-                minutosTolerancia: turno.minutosTolerancia,
-                horasExtras: 0,
-                ultimaMarca: Date.now()
-            },
+            datos: datosEntrada({ hora, turno }),
             mensaje: `entrada ${hora}, turno ${turno.nombre}, ${turno.estado === 'tarde' ? `<strong>${descripcion}</strong>` : descripcion}.`,
             tipo: { presente: 'success', tolerancia: 'info', tarde: 'warning' }[turno.estado]
         };
@@ -929,6 +951,203 @@ window.horariosDeshacerRegistro = async function(docId, boton) {
         showAlert('No se pudo deshacer el registro.', 'danger');
     }
 };
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LECTOR DE HUELLA / TARJETA (ZKTeco)
+// El programa de la carpeta lector-zkteco/ copia cada marca del lector a la colección marcasLector
+// con { legajo, fechaHora: 'AAAA-MM-DDTHH:MM:SS', procesada: false }. Cualquier sesión abierta con
+// Control Horario la convierte en entrada, descanso o salida, con la hora real en que se marcó.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Pasadas cuántas horas del fin del turno una marca ya no cierra la jornada del día anterior (turno noche).
+const MARGEN_CIERRE_JORNADA_ANTERIOR_MIN = 4 * 60;
+// Solo se avisa en pantalla de las marcas recientes; las atrasadas se procesan en silencio.
+const AVISO_MARCA_RECIENTE_MS = 10 * 60 * 1000;
+const TEXTO_RESULTADO_LECTOR = {
+    desconocido: 'legajo no cargado en Personal',
+    repetida: 'marca repetida',
+    cerrada: 'la jornada ya estaba cerrada',
+    anterior: 'marca más vieja que la última registrada',
+    ausente: 'tiene cargada una ausencia en la jornada',
+    fecha_invalida: 'la marca llegó sin fecha válida'
+};
+
+let marcasLectorPendientes = [];
+let procesandoMarcasLector = false;
+let hayMarcasNuevas = false;
+
+function escucharMarcasLector() {
+    onSnapshot(query(getUserCollection('marcasLector'), where('procesada', '==', false)), snapshot => {
+        marcasLectorPendientes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        procesarMarcasLector();
+    }, error => {
+        // Sin permiso en las reglas de Firestore todavía no se usa el lector: no se molesta al usuario.
+        console.warn('Marcas del lector no disponibles:', error.code || error);
+    });
+}
+
+// "2026-11-25T06:02:41" → fecha local, sin depender de la zona horaria del navegador.
+function leerFechaHoraLector(texto) {
+    const m = String(texto || '').match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/);
+    if (!m) return null;
+    const [, y, mes, d, h, min, seg] = m.map(Number);
+    return new Date(y, mes - 1, d, h, min, seg || 0);
+}
+
+function momentoDe(fecha, hhmm) {
+    const momento = parsearFecha(fecha);
+    const [h, m] = hhmm.split(':').map(Number);
+    momento.setHours(h, m, 0, 0);
+    return momento;
+}
+
+// El turno noche sigue abierto pasada la medianoche: su salida pertenece a la jornada anterior.
+function jornadaAnteriorAbierta(reg, ms) {
+    if (!reg || !esPresencia(reg.estado) || !reg.entrada || reg.salidaMarcada || salidaEnCurso(salidasDe(reg))) return false;
+    let entradaMs = Number(reg.entradaTs) || 0;
+    if (!entradaMs) {
+        const momento = momentoDe(reg.fecha, reg.entrada);
+        if (turnoParaHora(reg.entrada)?.esDelDiaAnterior) momento.setDate(momento.getDate() + 1);
+        entradaMs = momento.getTime();
+    }
+    const finTurno = salidaProgramadaDe(reg);
+    const duracionMin = finTurno ? minutosDesdeEntrada(reg.entrada, finTurno) : configHorario.jornadaHs * 60;
+    const limiteMs = entradaMs + (duracionMin + MARGEN_CIERRE_JORNADA_ANTERIOR_MIN) * 60000;
+    return ms > entradaMs && ms <= limiteMs;
+}
+
+async function procesarMarcasLector() {
+    if (!personalCargado || !asistenciaCargada || !configCargada || !marcasLectorPendientes.length) return;
+    if (procesandoMarcasLector) {
+        hayMarcasNuevas = true;
+        return;
+    }
+    procesandoMarcasLector = true;
+    try {
+        do {
+            hayMarcasNuevas = false;
+            const enOrden = marcasLectorPendientes
+                .map(marca => ({ ...marca, momento: leerFechaHoraLector(marca.fechaHora) }))
+                .sort((a, b) => (a.momento?.getTime() || 0) - (b.momento?.getTime() || 0));
+            for (const marca of enOrden) {
+                try {
+                    await procesarMarcaLector(marca);
+                } catch (e) {
+                    console.error('No se pudo procesar la marca del lector', marca.id, e);
+                }
+            }
+        } while (hayMarcasNuevas);
+    } finally {
+        procesandoMarcasLector = false;
+    }
+}
+
+async function procesarMarcaLector(marca) {
+    const refMarca = doc(getUserCollection('marcasLector'), marca.id);
+    const legajo = String(marca.legajo ?? '').trim();
+    const op = state.operariosData.find(o => o.activo !== false && String(o.dni || '').trim() === legajo);
+    const momento = marca.momento;
+
+    // Legajo todavía no cargado en Personal: la marca queda esperando (se procesa sola cuando se cargue).
+    // Pasados unos días se da por perdida, para que no quede pendiente para siempre.
+    if (!op && momento && Date.now() - momento.getTime() < ESPERA_LEGAJO_DESCONOCIDO_MS) {
+        avisarLegajoDesconocido(legajo, momento);
+        return;
+    }
+
+    // Una transacción por marca: si hay varias pestañas abiertas, solo una la procesa.
+    const resultado = await runTransaction(state.db, async tx => {
+        const actual = await tx.get(refMarca);
+        if (!actual.exists() || actual.data().procesada) return null;
+
+        // Deja la marca como procesada, con qué se hizo con ella. aviso: lo que hace falta para el mensaje en pantalla.
+        const cerrar = (accion, asistenciaId = '', aviso = {}) => {
+            tx.update(refMarca, {
+                procesada: true,
+                resultado: accion,
+                operarioId: op?.id || '',
+                operarioNombre: op?.nombre || '',
+                asistenciaId,
+                procesadaEn: new Date(),
+                procesadaPor: state.usuario?.usuario || ''
+            });
+            return { accion, ...aviso };
+        };
+
+        if (!op || !momento) return cerrar(op ? 'fecha_invalida' : 'desconocido');
+
+        const ms = momento.getTime();
+        const jornada = jornadaEn(momento);
+        const refHoy = doc(getUserCollection('asistencia'), `${jornada.fecha}_${op.id}`);
+        const refAnterior = doc(getUserCollection('asistencia'), `${sumarDias(jornada.fecha, -1)}_${op.id}`);
+        const snapHoy = await tx.get(refHoy);
+        const snapAnterior = await tx.get(refAnterior);
+
+        let ref = refHoy;
+        let reg = snapHoy.exists() ? { id: snapHoy.id, ...snapHoy.data() } : null;
+        if (!reg && snapAnterior.exists()) {
+            const anterior = { id: snapAnterior.id, ...snapAnterior.data() };
+            if (jornadaAnteriorAbierta(anterior, ms)) {
+                ref = refAnterior;
+                reg = anterior;
+            }
+        }
+
+        if (!reg) {
+            tx.set(refHoy, {
+                operarioId: op.id,
+                operarioNombre: op.nombre,
+                operarioPuesto: op.puesto || '',
+                fecha: jornada.fecha,
+                ...datosEntrada(jornada),
+                entradaTs: ms,
+                ultimaMarca: ms,
+                observaciones: '',
+                motivo: '',
+                origen: 'lector',
+                actualizadoEn: new Date()
+            });
+            return cerrar('entrada', refHoy.id, { hora: jornada.hora, turno: jornada.turno });
+        }
+
+        reg = conToleranciaVigente(reg);
+        if (esAusencia(reg.estado)) return cerrar('ausente', reg.id);
+        const diferencia = ms - (Number(reg.ultimaMarca) || 0);
+        if (Math.abs(diferencia) < MARCA_REPETIDA_MS) return cerrar('repetida', reg.id);
+        if (diferencia < 0) return cerrar('anterior', reg.id);
+
+        const cambios = cambiosDeMarca(reg, jornada.hora);
+        if (!cambios) return cerrar('cerrada', reg.id);
+        tx.update(ref, { ...cambios.guardar, ultimaMarca: ms, origenUltimaMarca: 'lector' });
+        return cerrar(cambios.accion, reg.id, { hora: jornada.hora, datos: cambios.datos });
+    });
+
+    if (resultado && op && momento && Date.now() - momento.getTime() < AVISO_MARCA_RECIENTE_MS) avisarMarcaLector(op, resultado);
+}
+
+// Avisa una sola vez por legajo (y solo si la marca es reciente) que hay que cargarlo en Personal.
+const ESPERA_LEGAJO_DESCONOCIDO_MS = 7 * 24 * 60 * 60 * 1000;
+const legajosAvisados = new Set();
+function avisarLegajoDesconocido(legajo, momento) {
+    if (legajosAvisados.has(legajo) || Date.now() - momento.getTime() > AVISO_MARCA_RECIENTE_MS) return;
+    if (state.currentActivePanel !== 'horarios') return;
+    legajosAvisados.add(legajo);
+    showNotification(`<i class="bi bi-fingerprint me-1"></i>Marcó el legajo <strong>${escapeHtml(legajo)}</strong>, que no está cargado en Personal. La marca queda guardada: cargá ese número en el DNI o legajo del operario y se registra sola.`, 'warning', 10000);
+}
+
+function avisarMarcaLector(op, resultado) {
+    if (state.currentActivePanel !== 'horarios') return;
+    const icono = '<i class="bi bi-fingerprint me-1"></i>';
+    const { accion, hora, turno } = resultado;
+    if (accion === 'entrada') {
+        showNotification(`${icono}<strong>${escapeHtml(op.nombre)}</strong>: entrada ${hora}, turno ${escapeHtml(turno.nombre)}, ${describirLlegada(turno)}.`,
+            { presente: 'success', tolerancia: 'info', tarde: 'warning' }[turno.estado]);
+    } else if (ACCIONES_MARCA[accion]) {
+        showNotification(icono + mensajeMarca(op.nombre, accion, hora, resultado.datos), accion === 'salida' ? 'success' : 'info');
+    } else if (TEXTO_RESULTADO_LECTOR[accion] && accion !== 'repetida') {
+        showNotification(`${icono}<strong>${escapeHtml(op.nombre)}</strong>: ${TEXTO_RESULTADO_LECTOR[accion]}.`, 'warning');
+    }
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // VISTA 2: REPORTE POR OPERARIO

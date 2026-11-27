@@ -18,6 +18,8 @@ const CONFIG_HORARIO_POR_DEFECTO = {
     // Una marca pasadas estas horas desde la entrada inicia el descanso; antes, es la salida.
     descansoDesdeHs: 4,
     descuentaDescanso: false,
+    // Si no se marca la vuelta, el descanso se cierra solo pasados estos minutos (0: sin límite).
+    descansoMaxMin: 50,
     // Los sábados la jornada termina a esta hora (vacío: el sábado es un día normal). Los domingos no se trabaja.
     sabadoHasta: '12:00',
     // null: se usan los feriados nacionales precargados. Una vez editados en Configuración, se guarda la lista.
@@ -169,6 +171,12 @@ export function horaReloj(horas) {
     return `${Math.floor(totalMin / 60)}:${String(totalMin % 60).padStart(2, '0')}`;
 }
 const horasTexto = horas => `${horaReloj(horas)} h`;
+
+// Las horas extra van en bloques enteros: se muestran como unidades (1h, 2h, 6h). Si alguien cargó una fracción a mano, en formato reloj.
+export function horasExtraTexto(horas) {
+    const valor = parseCantidad(horas);
+    return Number.isInteger(valor) ? `${valor}h` : `${horaReloj(valor)} h`;
+}
 
 // Acepta "7:40", "7.5" o "7,5" y devuelve horas con decimales para guardar.
 function leerHoraReloj(texto) {
@@ -360,19 +368,77 @@ function proximaMarca(reg, hora) {
     if (!esPresencia(reg.estado) || !reg.entrada) return null;
     if (reg.salidaMarcada || salidaEnCurso(salidasDe(reg))) return null;
     const descansos = descansosDe(reg);
-    if (descansoEnCurso(descansos)) return 'fin_descanso';
+    const situacion = situacionDescanso(reg, hora);
+    if (situacion === 'abierto') return 'fin_descanso';
+    // Descanso vencido (se cerró o se cierra solo): la marca que sigue ya es la salida.
+    if (descansoEnCurso(descansos) || situacion === 'vencido') return 'salida';
     const transcurrido = minutosDesdeEntrada(reg.entrada, hora);
     // En los últimos minutos del turno (o después) la marca ya es la salida, no un descanso.
     const finTurno = salidaProgramadaDe(reg);
     const cierreTurno = finTurno ? minutosDesdeEntrada(reg.entrada, finTurno) - SIN_DESCANSO_ANTES_DE_SALIDA_MIN : LIMITE_JORNADA_MIN;
     if (!descansos.length
         && transcurrido >= configHorario.descansoDesdeHs * 60
-        && transcurrido < cierreTurno
+        && transcurrido <= cierreTurno
         && transcurrido <= LIMITE_JORNADA_MIN) return 'descanso';
     return 'salida';
 }
 // Desde estos minutos antes de la hora de salida del turno, marcar ya no inicia un descanso sino la salida.
 const SIN_DESCANSO_ANTES_DE_SALIDA_MIN = 30;
+
+// ---- Descanso máximo: si no se marca la vuelta, el descanso se cierra solo ----
+// Pasados los minutos configurados (por defecto 50) el descanso se cierra automáticamente en ese límite,
+// así la marca siguiente ya es la salida del turno.
+const descansoMaximoMin = () => parseCantidad(configHorario.descansoMaxMin);
+
+/**
+ * Cómo está el último descanso a esta hora:
+ * 'abierto'  en curso y dentro del máximo: la marca es la vuelta del descanso
+ * 'vencido'  sin cerrar y pasado el máximo: se cierra solo y la marca es la salida
+ * null       no hay descanso pendiente
+ */
+function situacionDescanso(reg, hora) {
+    const descansos = descansosDe(reg);
+    const ultimo = descansos[descansos.length - 1];
+    if (!ultimo?.inicio || ultimo.fin) return null;
+    const maximo = descansoMaximoMin();
+    const transcurrido = modulo(aMinutos(hora) - aMinutos(ultimo.inicio), 1440);
+    return !maximo || transcurrido <= maximo ? 'abierto' : 'vencido';
+}
+
+// El descanso cerrado solo queda en el límite y marcado como automático.
+function cerrarDescansoAutomatico(descanso) {
+    return { ...descanso, fin: desdeMinutos(aMinutos(descanso.inicio) + descansoMaximoMin()), automatico: true };
+}
+
+// Texto de un descanso para pantalla, Excel e impresión.
+function textoDescanso(d) {
+    if (!d.fin) return `Descanso desde ${d.inicio}, sin cerrar`;
+    const extra = d.automatico ? ' (cerrado automáticamente)' : d.excedidoMin ? ` (se pasó ${d.excedidoMin} min)` : '';
+    return `Descanso ${d.inicio} a ${d.fin}${extra}`;
+}
+
+/**
+ * Cierra solos los descansos de la jornada que pasaron el máximo sin que se marque la vuelta.
+ * Corre cada minuto en cualquier sesión abierta; si nadie tiene la web abierta, se cierra en la próxima marca.
+ */
+async function cerrarDescansosVencidos() {
+    const maximo = descansoMaximoMin();
+    if (!maximo || !asistenciaCargada || !configCargada) return;
+    const { hora, fecha } = jornadaActual();
+    const fechas = new Set([fecha, sumarDias(fecha, -1)]);
+    const vencidos = state.asistenciaData.filter(reg => fechas.has(reg.fecha) && !reg.salidaMarcada
+        && descansoEnCurso(descansosDe(reg))
+        && modulo(aMinutos(hora) - aMinutos(descansosDe(reg).at(-1).inicio), 1440) > maximo);
+    for (const reg of vencidos) {
+        const descansos = descansosDe(reg).slice();
+        descansos[descansos.length - 1] = cerrarDescansoAutomatico(descansos[descansos.length - 1]);
+        try {
+            await updateDoc(doc(getUserCollection('asistencia'), reg.id), { ...datosJornada(reg, { descansos }), actualizadoEn: new Date() });
+        } catch (e) {
+            console.error('No se pudo cerrar solo el descanso de', reg.operarioNombre, e);
+        }
+    }
+}
 
 const ACCIONES_MARCA = {
     descanso: { label: 'Descanso', icon: 'bi-cup-hot', css: 'btn-outline-info' },
@@ -477,6 +543,8 @@ export function setupHorariosListeners() {
     });
 
     escucharMarcasLector();
+    // Cierra solos los descansos que pasaron el máximo sin marcar la vuelta.
+    setInterval(cerrarDescansosVencidos, 60 * 1000);
     setInterval(actualizarRelojPlanilla, 1000);
 }
 
@@ -680,11 +748,11 @@ function renderizarEnPlanta(jornada) {
 
         const lineas = [];
         descansos.forEach(d => lineas.push(d.fin
-            ? `<span class="hor-salida hor-descanso"><i class="bi bi-cup-hot"></i>Descanso ${escapeHtml(d.inicio)} a ${escapeHtml(d.fin)} (${formatearMinutos(minutosDesdeEntrada(reg.entrada, d.fin) - minutosDesdeEntrada(reg.entrada, d.inicio))})</span>`
-            : `<span class="hor-salida hor-descanso hor-salida-abierta"><i class="bi bi-cup-hot"></i>En descanso desde las ${escapeHtml(d.inicio)}</span>`));
+            ? `<span class="hor-salida hor-descanso${d.automatico || d.excedidoMin ? ' hor-descanso-excedido' : ''}"><i class="bi bi-cup-hot"></i>${escapeHtml(textoDescanso(d))} · ${formatearMinutos(minutosDesdeEntrada(reg.entrada, d.fin) - minutosDesdeEntrada(reg.entrada, d.inicio))}</span>`
+            : `<span class="hor-salida hor-descanso hor-salida-abierta"><i class="bi bi-cup-hot"></i>En descanso desde las ${escapeHtml(d.inicio)}${descansoMaximoMin() ? ` (se cierra solo a las ${desdeMinutos(aMinutos(d.inicio) + descansoMaximoMin())})` : ''}</span>`));
         if (reg.salidaMarcada) {
             const extras = parseCantidad(reg.horasExtras);
-            lineas.push(`<span class="hor-salida hor-retirado"><i class="bi bi-door-closed"></i>Salió ${escapeHtml(reg.salidaMarcada)} · ${horasTexto(reg.horasTrabajadas)}${extras > 0 ? ` + ${horasTexto(extras)} extra` : ''}</span>`);
+            lineas.push(`<span class="hor-salida hor-retirado"><i class="bi bi-door-closed"></i>Salió ${escapeHtml(reg.salidaMarcada)} · ${horasTexto(reg.horasTrabajadas)}${extras > 0 ? ` + ${horasExtraTexto(extras)} extra` : ''}</span>`);
         }
 
         return `
@@ -716,12 +784,18 @@ function cambiosDeMarca(reg, hora) {
     if (!accion || accion === 'entrada') return null;
 
     let cambios;
+    const descansos = descansosDe(reg).slice();
+    const ultimo = descansos[descansos.length - 1];
     if (accion === 'descanso') {
-        cambios = { descansos: [...descansosDe(reg), { inicio: hora, fin: '' }] };
+        cambios = { descansos: [...descansos, { inicio: hora, fin: '' }] };
     } else if (accion === 'fin_descanso') {
-        const descansos = descansosDe(reg).slice();
-        descansos[descansos.length - 1] = { ...descansos[descansos.length - 1], fin: hora };
+        // Vuelta del descanso (siempre dentro del máximo: pasado el límite la marca ya es la salida).
+        descansos[descansos.length - 1] = { ...ultimo, fin: hora };
         cambios = { descansos };
+    } else if (ultimo && !ultimo.fin && descansoMaximoMin()) {
+        // Salida con el descanso vencido y abierto: se cierra solo en el límite.
+        descansos[descansos.length - 1] = cerrarDescansoAutomatico(ultimo);
+        cambios = { descansos, salidaMarcada: hora };
     } else {
         cambios = { salidaMarcada: hora };
     }
@@ -753,10 +827,13 @@ function mensajeMarca(nombre, accion, hora, datos) {
     if (accion === 'descanso') return `<strong>${escapeHtml(nombre)}</strong> empezó el descanso a las ${hora}.`;
     if (accion === 'fin_descanso') {
         const ultimo = datos.descansos[datos.descansos.length - 1];
-        return `<strong>${escapeHtml(nombre)}</strong> volvió del descanso (${formatearMinutos(modulo(aMinutos(ultimo.fin) - aMinutos(ultimo.inicio), 1440))}).`;
+        const exceso = ultimo.excedidoMin ? `, se pasó ${ultimo.excedidoMin} min` : '';
+        return `<strong>${escapeHtml(nombre)}</strong> volvió del descanso (${formatearMinutos(modulo(aMinutos(ultimo.fin) - aMinutos(ultimo.inicio), 1440))}${exceso}).`;
     }
     const extras = parseCantidad(datos.horasExtras);
-    return `<strong>${escapeHtml(nombre)}</strong> salió a las ${hora}: ${horasTexto(datos.horasTrabajadas)}${extras > 0 ? ` + ${horasTexto(extras)} extra` : ''}.`;
+    const ultimoDescanso = datos.descansos?.[datos.descansos.length - 1];
+    const nota = ultimoDescanso?.automatico ? ` El descanso se cerró automáticamente a las ${ultimoDescanso.fin}.` : '';
+    return `<strong>${escapeHtml(nombre)}</strong> salió a las ${hora}: ${horasTexto(datos.horasTrabajadas)}${extras > 0 ? ` + ${horasExtraTexto(extras)} extra` : ''}.${nota}`;
 }
 
 window.horariosMarcar = async function(asistenciaId) {
@@ -1594,7 +1671,7 @@ function renderizarPerfilReporte(op, resumen) {
 function renderizarKpisReporte(r) {
     escribirTexto('rep-kpi-dias-trabajados', r.trabajados);
     escribirTexto('rep-kpi-horas-normales', horasTexto(r.horasNormales));
-    escribirTexto('rep-kpi-horas-extras', horasTexto(r.horasExtras));
+    escribirTexto('rep-kpi-horas-extras', horasExtraTexto(r.horasExtras));
     escribirTexto('rep-kpi-tolerancias', r.tolerancias);
     escribirTexto('rep-kpi-tardes', r.tardes);
     escribirTexto('rep-kpi-tardes-detalle', r.minutosTarde > 0 ? `${formatearMinutos(r.minutosTarde)} en total` : 'Sin demoras');
@@ -1684,7 +1761,7 @@ window.horariosMoverMesCalendario = function(delta) {
 
 // Entrada a salida, con el descanso y una nota cuando la salida no se marcó (se tomó el turno completo).
 function textoDescansos(r) {
-    return descansosDe(r).map(d => d.fin ? `Descanso ${d.inicio} a ${d.fin}` : `Descanso desde ${d.inicio}, sin cerrar`).join(' · ');
+    return descansosDe(r).map(textoDescanso).join(' · ');
 }
 
 // Minutos de descanso del día; si quedó abierto (no se marcó la vuelta), se avisa.
@@ -1693,6 +1770,10 @@ function htmlMinutosDescanso(r) {
     if (!r.entrada || !descansos.length) return '—';
     const minutos = minutosDescansoDe(r.entrada, descansos);
     if (descansoEnCurso(descansos)) return `<span class="badge badge-asistencia-pendiente" title="Empezó a las ${escapeHtml(descansos[descansos.length - 1].inicio)} y no se marcó la vuelta">Sin cerrar</span>`;
+    const auto = descansos.some(d => d.automatico);
+    const excedido = descansos.reduce((t, d) => t + (parseCantidad(d.excedidoMin) || 0), 0);
+    if (auto) return `<span class="badge badge-asistencia-tarde" title="No marcó la vuelta: se cerró automáticamente">${minutos} min · auto</span>`;
+    if (excedido) return `<span class="badge badge-asistencia-tarde" title="Se pasó ${excedido} min del descanso">${minutos} min</span>`;
     return `<span class="badge badge-asistencia-justificada">${minutos} min</span>`;
 }
 
@@ -1741,7 +1822,7 @@ function renderizarHistorialReporte(registros) {
                 <td data-label="Estado"><span class="badge badge-asistencia-${info.css}"><i class="bi ${info.icon} me-1"></i>${info.label}</span></td>
                 <td data-label="Horario">${htmlHorario(r)}</td>
                 <td data-label="Horas" class="text-end">${horasTexto(r.horasTrabajadas)}</td>
-                <td data-label="Extras" class="text-end">${extras > 0 ? `<span class="badge badge-extra-horas">+${horasTexto(extras)}</span>` : '—'}</td>
+                <td data-label="Extras" class="text-end">${extras > 0 ? `<span class="badge badge-extra-horas">+${horasExtraTexto(extras)}</span>` : '—'}</td>
                 <td data-label="Tardanza" class="text-center">${tarde > 0 ? `<span class="badge badge-asistencia-tarde">${formatearMinutos(tarde)}</span>` : tolerancia > 0 ? `<span class="badge badge-asistencia-tolerancia">${formatearMinutos(tolerancia)}</span>` : '—'}</td>
                 <td data-label="Descanso" class="text-center">${htmlMinutosDescanso(r)}</td>
                 <td data-label="Observaciones">${r.observaciones || r.motivo || !salidasDe(r).length ? `<small>${escapeHtml(r.observaciones || r.motivo || '—')}</small>` : ''}${htmlSalidas(salidasDe(r))}</td>
@@ -1784,7 +1865,7 @@ window.horariosExportarCSV = function() {
             celda(r.entrada),
             celda(r.salida),
             celda(horaReloj(r.horasTrabajadas)),
-            celda(horaReloj(r.horasExtras)),
+            celda(horasExtraTexto(r.horasExtras)),
             numero(r.minutosTarde),
             celda(textoDescansos(r)),
             celda(salidasDe(r).map(s => textoSalida(s)).join(' | ')),
@@ -1840,7 +1921,7 @@ window.horariosImprimirReporte = function() {
         <div class="hor-print-kpis">
             ${kpi(r.trabajados, 'Días trabajados')}
             ${kpi(horasTexto(r.horasNormales), 'Horas normales')}
-            ${kpi(horasTexto(r.horasExtras), 'Horas extras')}
+            ${kpi(horasExtraTexto(r.horasExtras), 'Horas extras')}
             ${kpi(r.tolerancias, 'En tolerancia')}
             ${kpi(`${r.tardes} (${formatearMinutos(r.minutosTarde)})`, 'Llegadas tarde')}
             ${kpi(r.justificadas, 'Faltas justif.')}
@@ -1857,7 +1938,7 @@ window.horariosImprimirReporte = function() {
                     <td>${ESTADOS[reg.estado]?.label || escapeHtml(reg.estado)}</td>
                     <td>${reg.entrada && reg.salida ? `${reg.entrada} a ${reg.salida}` : '—'}</td>
                     <td>${horaReloj(reg.horasTrabajadas)}</td>
-                    <td>${parseCantidad(reg.horasExtras) > 0 ? `+${horaReloj(reg.horasExtras)}` : '—'}</td>
+                    <td>${parseCantidad(reg.horasExtras) > 0 ? `+${horasExtraTexto(reg.horasExtras)}` : '—'}</td>
                     <td>${parseCantidad(reg.minutosTarde) > 0 ? formatearMinutos(parseCantidad(reg.minutosTarde)) : '—'}</td>
                     <td>${escapeHtml([...salidasDe(reg).map(s => textoSalida(s)), reg.observaciones || reg.motivo].filter(Boolean).join(' · ') || '—')}</td>
                 </tr>`).join('') || '<tr><td colspan="8">Sin registros en el período.</td></tr>'}
@@ -2369,6 +2450,7 @@ export function renderizarConfigHorario() {
     document.getElementById('cfg-extras').value = configHorario.extrasFraccionMin;
     document.getElementById('cfg-descanso-desde').value = configHorario.descansoDesdeHs;
     document.getElementById('cfg-descuenta-descanso').checked = !!configHorario.descuentaDescanso;
+    document.getElementById('cfg-descanso-max').value = configHorario.descansoMaxMin ?? 50;
     window.horariosActualizarSalidasConfig();
 }
 
@@ -2391,6 +2473,7 @@ window.horariosGuardarConfig = async function() {
             extrasFraccionMin: parseCantidad(document.getElementById('cfg-extras').value),
             descansoDesdeHs: parseCantidad(document.getElementById('cfg-descanso-desde').value),
             descuentaDescanso: document.getElementById('cfg-descuenta-descanso').checked,
+            descansoMaxMin: parseCantidad(document.getElementById('cfg-descanso-max').value),
             sabadoHasta: document.getElementById('cfg-sabado-hasta').value || '',
             // Los feriados se editan aparte: se conservan tal como están.
             feriados: Array.isArray(configHorario.feriados) ? configHorario.feriados : null,

@@ -1335,6 +1335,11 @@
                                 </div>
                             </div>
                             <div class="col-12 col-md-6">
+                                <label class="form-label" for="cfg-descanso-max">Descanso máximo (minutos)</label>
+                                <input type="number" class="form-control form-control-sm" id="cfg-descanso-max" min="0" max="240" step="5">
+                                <div class="form-text cfg-ayuda">Si no marca la vuelta, el descanso se cierra solo pasado este tiempo y queda como "cerrado automáticamente". Con 0 no tiene límite.</div>
+                            </div>
+                            <div class="col-12 col-md-6">
                                 <label class="form-label" for="cfg-sabado-hasta">Los sábados se trabaja hasta</label>
                                 <input type="time" class="form-control form-control-sm" id="cfg-sabado-hasta">
                                 <div class="form-text cfg-ayuda">Vacío: el sábado es un día normal. Los domingos y feriados no se trabaja; lo que se trabaje esos días son horas extra.</div>

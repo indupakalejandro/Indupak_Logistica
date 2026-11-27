@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { getUserCollection, doc, updateDoc, addDoc, deleteDoc } from './firebase.js';
 import { formatCantidad, marcarBloqueListo } from './ui.js';
 import { articulosPorComprar, asegurarDiasRestantes } from './compras.js';
-import { resumenEquipoDelMes, horaReloj } from './horarios.js';
+import { resumenEquipoDelMes, horasExtraTexto } from './horarios.js';
 
 // Paleta de colores para proveedores
 const SUPPLIER_COLORS = ['#60D040','#9060e0','#fd7e14','#20c997','#e83e8c','#0dcaf0','#ffc107','#6610f2'];
@@ -90,7 +90,7 @@ export function renderizarPersonalDashboard() {
         filaMetrica('En tolerancia', r.tolerancias, tolerancias, `${formatCantidad(tolerancias, 1)}% de las entradas`),
         filaMetrica('Llegadas tarde', r.tardes, tardes, `Fuera de tolerancia · ${formatCantidad(tardes, 1)}% de las entradas`),
         filaMetrica('Faltas', faltas, porcentaje(faltas, laborables), `${r.injustificadas} injustificadas · ${r.justificadas} justificadas`),
-        filaMetrica('Horas extras', `${horaReloj(r.horasExtras)} h`, extras, `${formatCantidad(extras, 1)}% de las horas normales`)
+        filaMetrica('Horas extras', horasExtraTexto(r.horasExtras), extras, `${formatCantidad(extras, 1)}% de las horas normales`)
     ].join('');
 }
 

@@ -2623,3 +2623,6 @@ body.light-mode {
 body.light-mode .text-muted,
 body.light-mode .hor-tabla .text-muted { color: rgba(31, 24, 48, 0.62) !important; }
 body.light-mode .dock-burbuja { background: linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.05) 48%, rgba(255, 255, 255, 0.12)), color-mix(in srgb, var(--accent-color) 52%, transparent); border-color: color-mix(in srgb, var(--accent-color) 70%, white); }
+
+/* Descanso cerrado automáticamente o excedido */
+.hor-descanso-excedido, .hor-descanso-excedido i { color: var(--hor-tarde) !important; }

@@ -145,6 +145,10 @@
             <button type="button" class="dock-item dock-secundario" id="nav-termos" data-panel="termos" title="Termo" aria-label="Termo" onclick="irAPanel('termos')">
                 <i class="bi bi-layers dock-icono"></i><i class="bi bi-layers-fill dock-icono-activo"></i><span>Termo</span>
             </button>
+            <!-- Solo aparece mientras se está en Configuración (se entra desde el menú de la hora) -->
+            <button type="button" class="dock-item dock-secundario dock-solo-activo" id="nav-configuracion" data-panel="configuracion" title="Configuración" aria-label="Configuración" onclick="irAPanel('configuracion')">
+                <i class="bi bi-gear dock-icono"></i><i class="bi bi-gear-fill dock-icono-activo"></i><span>Configuración</span>
+            </button>
             <button type="button" class="dock-item dock-mas" aria-label="Más secciones" aria-haspopup="dialog" onclick="abrirMenuMas()">
                 <i class="bi bi-grid dock-icono"></i><i class="bi bi-grid-fill dock-icono-activo"></i><span>Más</span>
             </button>
@@ -1330,6 +1334,11 @@
                                     <label class="form-check-label" for="cfg-descuenta-descanso">Descontar el descanso de las horas trabajadas</label>
                                 </div>
                             </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label" for="cfg-sabado-hasta">Los sábados se trabaja hasta</label>
+                                <input type="time" class="form-control form-control-sm" id="cfg-sabado-hasta">
+                                <div class="form-text cfg-ayuda">Vacío: el sábado es un día normal. Los domingos y feriados no se trabaja; lo que se trabaje esos días son horas extra.</div>
+                            </div>
                     </div>
                 </div>
                 <div class="card-footer d-flex justify-content-between align-items-center gap-2 flex-wrap">
@@ -1337,6 +1346,26 @@
                     <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-floppy me-1"></i>Guardar</button>
                 </div>
             </form>
+
+            <!-- Feriados: los nacionales vienen precargados; se pueden quitar o agregar (por ejemplo, días no laborables o de la empresa) -->
+            <div class="card mb-4" id="cfg-feriados-card">
+                <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                    <h5 class="card-title mb-0"><i class="bi bi-calendar-heart me-2"></i>Feriados</h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <select class="form-select form-select-sm w-auto" id="cfg-feriados-anio" aria-label="Año" onchange="horariosRenderizarFeriados()"></select>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="horariosRestaurarFeriados()" title="Volver a la lista de feriados nacionales"><i class="bi bi-arrow-counterclockwise me-1"></i>Nacionales</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <form class="cfg-feriado-nuevo" onsubmit="event.preventDefault(); horariosAgregarFeriado();">
+                        <input type="date" class="form-control form-control-sm" id="cfg-feriado-fecha" aria-label="Fecha del feriado" required>
+                        <input type="text" class="form-control form-control-sm" id="cfg-feriado-nombre" placeholder="Nombre, por ejemplo: Día del Trabajador Plástico" aria-label="Nombre del feriado" required>
+                        <button type="submit" class="btn btn-primary btn-sm text-nowrap"><i class="bi bi-plus-lg me-1"></i>Agregar</button>
+                    </form>
+                    <ul class="cfg-feriados-lista" id="cfg-feriados-lista"></ul>
+                </div>
+                <div class="card-footer cfg-ayuda small">Vienen cargados los feriados nacionales de 2026 y 2027. Si el gobierno mueve alguno por decreto, corregilo acá. Los cambios se guardan al instante.</div>
+            </div>
         </div>
 
         <div class="row" id="config-seccion-usuarios" style="display: none;">
@@ -1718,6 +1747,8 @@
                         <span class="hor-cal-justificada">Justif.</span>
                         <span class="hor-cal-franco">Franco</span>
                         <span class="hor-leyenda-salida">Con salida</span>
+                        <span class="hor-leyenda-feriado">Feriado</span>
+                        <span class="hor-leyenda-domingo">Domingo</span>
                     </div>
                 </div>
             </div>
@@ -2345,7 +2376,7 @@
                     <div class="row g-2 mb-3">
                         <div class="col-6">
                             <label class="form-label">Fecha</label>
-                            <input type="date" class="form-control" id="edit-asistencia-fecha" required>
+                            <input type="date" class="form-control" id="edit-asistencia-fecha" required onchange="if (document.getElementById('edit-asistencia-entrada').value) horariosProcesarLlegadaModal()">
                         </div>
                         <div class="col-6">
                             <label class="form-label">Estado</label>

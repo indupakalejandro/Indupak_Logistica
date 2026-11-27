@@ -1342,7 +1342,12 @@
                             <div class="col-12 col-md-6">
                                 <label class="form-label" for="cfg-sabado-hasta">Los sábados se trabaja hasta</label>
                                 <input type="time" class="form-control form-control-sm" id="cfg-sabado-hasta">
-                                <div class="form-text cfg-ayuda">Vacío: el sábado es un día normal. Los domingos y feriados no se trabaja; lo que se trabaje esos días son horas extra.</div>
+                                <div class="form-text cfg-ayuda">Vacío: el sábado es un día normal. Los domingos y feriados no se trabaja: nadie cuenta como faltante.</div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" for="cfg-autorizadores">Autorizan salidas con su tarjeta (DNI / legajo)</label>
+                                <input type="text" class="form-control form-control-sm" id="cfg-autorizadores" placeholder="Ej.: 95696205, 30111222" autocomplete="off" oninput="horariosMostrarAutorizadores()">
+                                <div class="form-text cfg-ayuda">Si alguien marca con la huella y enseguida (dentro de 3 minutos) una de estas personas pasa su tarjeta, la marca se toma como salida autorizada, aunque esté en horario de descanso. La tarjeta de quien autoriza no registra su propio horario; para eso sigue usando la huella. <span id="cfg-autorizadores-nombres"></span></div>
                             </div>
                     </div>
                 </div>

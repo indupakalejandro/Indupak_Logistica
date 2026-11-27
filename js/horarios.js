@@ -20,6 +20,8 @@ const CONFIG_HORARIO_POR_DEFECTO = {
     descuentaDescanso: false,
     // Si no se marca la vuelta, el descanso se cierra solo pasados estos minutos (0: sin límite).
     descansoMaxMin: 50,
+    // DNI / legajo de quienes autorizan una salida pasando su tarjeta enseguida de la huella del operario.
+    autorizadoresSalida: [],
     // Los sábados la jornada termina a esta hora (vacío: el sábado es un día normal). Los domingos no se trabaja.
     sabadoHasta: '12:00',
     // null: se usan los feriados nacionales precargados. Una vez editados en Configuración, se guarda la lista.
@@ -752,7 +754,8 @@ function renderizarEnPlanta(jornada) {
             : `<span class="hor-salida hor-descanso hor-salida-abierta"><i class="bi bi-cup-hot"></i>En descanso desde las ${escapeHtml(d.inicio)}${descansoMaximoMin() ? ` (se cierra solo a las ${desdeMinutos(aMinutos(d.inicio) + descansoMaximoMin())})` : ''}</span>`));
         if (reg.salidaMarcada) {
             const extras = parseCantidad(reg.horasExtras);
-            lineas.push(`<span class="hor-salida hor-retirado"><i class="bi bi-door-closed"></i>Salió ${escapeHtml(reg.salidaMarcada)} · ${horasTexto(reg.horasTrabajadas)}${extras > 0 ? ` + ${horasExtraTexto(extras)} extra` : ''}</span>`);
+            const autorizada = reg.salidaAutorizada ? ` · autorizada por ${escapeHtml(reg.salidaAutorizada.por || '')}` : '';
+            lineas.push(`<span class="hor-salida hor-retirado"><i class="bi ${reg.salidaAutorizada ? 'bi-person-check' : 'bi-door-closed'}"></i>Salió ${escapeHtml(reg.salidaMarcada)}${autorizada} · ${horasTexto(reg.horasTrabajadas)}${extras > 0 ? ` + ${horasExtraTexto(extras)} extra` : ''}</span>`);
         }
 
         return `
@@ -1171,7 +1174,10 @@ const TEXTO_RESULTADO_LECTOR = {
     cerrada: 'la jornada ya estaba cerrada',
     anterior: 'marca más vieja que la última registrada',
     ausente: 'tiene cargada una ausencia en la jornada',
-    fecha_invalida: 'la marca llegó sin fecha válida'
+    fecha_invalida: 'la marca llegó sin fecha válida',
+    salida_autorizada: 'tarjeta: autorizó una salida',
+    autorizacion_sin_marca: 'tarjeta: nadie había marcado antes',
+    autorizacion_sin_salida: 'tarjeta: la marca anterior no se podía tomar como salida'
 };
 
 let marcasLectorPendientes = [];
@@ -1252,6 +1258,9 @@ async function procesarMarcaLector(marca) {
 
     // Legajo todavía no cargado en Personal: la marca queda esperando (se procesa sola cuando se cargue).
     // Pasados unos días se da por perdida, para que no quede pendiente para siempre.
+    // Tarjeta de quien autoriza: no es su propia marca, confirma la salida de quien acaba de marcar.
+    if (momento && esTarjetaDeAutorizador(marca, legajo)) return procesarAutorizacionSalida(marca, op, refMarca);
+
     if (!op && momento && Date.now() - momento.getTime() < ESPERA_LEGAJO_DESCONOCIDO_MS) {
         avisarLegajoDesconocido(legajo, momento);
         return;
@@ -1321,10 +1330,113 @@ async function procesarMarcaLector(marca) {
         const cambios = cambiosDeMarca(reg, jornada.hora);
         if (!cambios) return cerrar('cerrada', reg.id);
         tx.update(ref, { ...cambios.guardar, ultimaMarca: ms, origenUltimaMarca: 'lector' });
-        return cerrar(cambios.accion, reg.id, { hora: jornada.hora, datos: cambios.datos });
+        return cerrar(cambios.accion, reg.id, { hora: jornada.hora, datos: cambios.datos, ms, asistenciaId: reg.id });
     });
 
+    if (resultado?.ms) {
+        marcasRecientes.push({ asistenciaId: resultado.asistenciaId, ms: resultado.ms });
+        if (marcasRecientes.length > 50) marcasRecientes.splice(0, marcasRecientes.length - 50);
+    }
     if (resultado && op && momento && Date.now() - momento.getTime() < AVISO_MARCA_RECIENTE_MS) avisarMarcaLector(op, resultado);
+}
+
+// ---- Salida autorizada: huella del operario + tarjeta de quien autoriza, enseguida ----
+// Sirve para quien se retira en el horario de descanso: su marca se tomaría como descanso,
+// pero si el encargado pasa su tarjeta dentro de unos minutos, queda como salida a la hora de la huella.
+const VENTANA_AUTORIZACION_MS = 3 * 60 * 1000;
+const VERIFICACION_TARJETA = '4';
+// Jornadas marcadas por el lector en esta pestaña hace poco (la lista de asistencia puede tardar en actualizarse).
+const marcasRecientes = [];
+
+const autorizadoresSalida = () =>
+    (Array.isArray(configHorario.autorizadoresSalida) ? configHorario.autorizadoresSalida : []).map(normalizarLegajo).filter(Boolean);
+
+function esTarjetaDeAutorizador(marca, legajo) {
+    return String(marca.verificacion ?? '') === VERIFICACION_TARJETA && autorizadoresSalida().includes(normalizarLegajo(legajo));
+}
+
+const horaDe = momento => `${String(momento.getHours()).padStart(2, '0')}:${String(momento.getMinutes()).padStart(2, '0')}`;
+
+// Qué cambia en la jornada para que la última marca (a esta hora) quede como salida. null si no corresponde.
+function cambiosSalidaAutorizada(reg, hora) {
+    if (!esPresencia(reg.estado) || !reg.entrada || salidaEnCurso(salidasDe(reg))) return null;
+    if (reg.salidaMarcada) return reg.salidaMarcada === hora ? {} : null;       // ya era la salida: queda autorizada
+    const descansos = descansosDe(reg).slice();
+    const ultimo = descansos[descansos.length - 1];
+    if (ultimo && !ultimo.fin && ultimo.inicio === hora) {                       // se tomó como descanso: se quita
+        descansos.pop();
+        return { descansos, salidaMarcada: hora };
+    }
+    if (ultimo && ultimo.fin === hora) return { salidaMarcada: hora };          // volvía del descanso y se va
+    return null;
+}
+
+async function procesarAutorizacionSalida(marca, autorizador, refMarca) {
+    const ms = marca.momento.getTime();
+    const nombreAutorizador = autorizador?.nombre || `legajo ${marca.legajo}`;
+    const enVentana = t => t <= ms && ms - t <= VENTANA_AUTORIZACION_MS;
+    // Candidatas: lo que esta pestaña acaba de procesar y lo que ya llegó a la lista de asistencia.
+    const candidatas = new Set([
+        ...marcasRecientes.filter(m => enVentana(m.ms)).map(m => m.asistenciaId),
+        ...state.asistenciaData.filter(r => enVentana(Number(r.ultimaMarca) || 0)).map(r => r.id)
+    ].filter(Boolean));
+
+    const resultado = await runTransaction(state.db, async tx => {
+        const actual = await tx.get(refMarca);
+        if (!actual.exists() || actual.data().procesada) return null;
+
+        // La jornada que se marcó más cerca antes de la tarjeta, de otra persona.
+        let elegida = null;
+        for (const id of candidatas) {
+            const snap = await tx.get(doc(getUserCollection('asistencia'), id));
+            if (!snap.exists()) continue;
+            const reg = { id: snap.id, ...snap.data() };
+            const t = Number(reg.ultimaMarca) || 0;
+            if (reg.operarioId === autorizador?.id || !enVentana(t)) continue;
+            if (!elegida || t > elegida.t) elegida = { reg, t };
+        }
+
+        const cerrar = (accion, extra = {}) => {
+            tx.update(refMarca, {
+                procesada: true,
+                resultado: accion,
+                operarioId: autorizador?.id || '',
+                operarioNombre: autorizador?.nombre || '',
+                procesadaEn: new Date(),
+                procesadaPor: state.usuario?.usuario || '',
+                ...extra
+            });
+            return { accion, ...extra };
+        };
+
+        if (!elegida) return cerrar('autorizacion_sin_marca');
+        const reg = conToleranciaVigente(elegida.reg);
+        const hora = horaDe(new Date(elegida.t));
+        const cambios = cambiosSalidaAutorizada(reg, hora);
+        const extra = { asistenciaId: reg.id, autorizaA: reg.operarioNombre || '' };
+        if (!cambios) return cerrar('autorizacion_sin_salida', extra);
+
+        const datos = datosJornada(reg, cambios);
+        tx.update(doc(getUserCollection('asistencia'), reg.id), {
+            ...datos,
+            estado: reg.estado,
+            minutosTarde: parseCantidad(reg.minutosTarde),
+            minutosTolerancia: parseCantidad(reg.minutosTolerancia),
+            salidaAutorizada: { por: nombreAutorizador, legajo: String(marca.legajo ?? ''), hora: horaDe(marca.momento) },
+            actualizadoEn: new Date()
+        });
+        return cerrar('salida_autorizada', { ...extra, hora, horas: datos.horasTrabajadas });
+    });
+
+    if (!resultado || Date.now() - ms >= AVISO_MARCA_RECIENTE_MS || state.currentActivePanel !== 'horarios') return;
+    const icono = '<i class="bi bi-person-check me-1"></i>';
+    if (resultado.accion === 'salida_autorizada') {
+        showNotification(`${icono}<strong>${escapeHtml(resultado.autorizaA)}</strong> salió a las ${resultado.hora} (${horasTexto(resultado.horas)}), autorizado por ${escapeHtml(nombreAutorizador)}.`, 'success');
+    } else {
+        showNotification(`${icono}La tarjeta de ${escapeHtml(nombreAutorizador)} no autorizó ninguna salida: ${resultado.accion === 'autorizacion_sin_marca'
+            ? 'nadie marcó con la huella en los últimos 3 minutos'
+            : `la última marca de ${escapeHtml(resultado.autorizaA)} no se puede tomar como salida`}. La tarjeta no registra horario; para tu entrada o salida usá la huella.`, 'warning', 9000);
+    }
 }
 
 // Avisa una sola vez por legajo (y solo si la marca es reciente) que hay que cargarlo en Personal.
@@ -1760,6 +1872,11 @@ window.horariosMoverMesCalendario = function(delta) {
 };
 
 // Entrada a salida, con el descanso y una nota cuando la salida no se marcó (se tomó el turno completo).
+function textoSalidaAutorizada(r) {
+    const a = r.salidaAutorizada;
+    return a ? `Salida ${r.salidaMarcada || ''} autorizada por ${a.por || a.legajo || ''}${a.hora ? ` (tarjeta ${a.hora})` : ''}` : '';
+}
+
 function textoDescansos(r) {
     return descansosDe(r).map(textoDescanso).join(' · ');
 }
@@ -1783,7 +1900,8 @@ function htmlHorario(r) {
     const descansos = textoDescansos(r);
     return `<span class="text-nowrap">${escapeHtml(r.entrada)} a ${escapeHtml(r.salida)}</span>`
         + (sinMarcar ? '<br><small class="text-muted">Salida sin marcar: turno completo</small>' : '')
-        + (descansos ? `<br><small class="text-muted"><i class="bi bi-cup-hot me-1"></i>${escapeHtml(descansos)}</small>` : '');
+        + (r.salidaAutorizada ? `<br><small class="text-muted"><i class="bi bi-person-check me-1"></i>${escapeHtml(textoSalidaAutorizada(r))}</small>` : '')
+        + (descansos ?`<br><small class="text-muted"><i class="bi bi-cup-hot me-1"></i>${escapeHtml(descansos)}</small>` : '');
 }
 
 function renderizarHistorialReporte(registros) {
@@ -1868,7 +1986,7 @@ window.horariosExportarCSV = function() {
             celda(horasExtraTexto(r.horasExtras)),
             numero(r.minutosTarde),
             celda(textoDescansos(r)),
-            celda(salidasDe(r).map(s => textoSalida(s)).join(' | ')),
+            celda([...salidasDe(r).map(s => textoSalida(s)), ...(r.salidaAutorizada ? [textoSalidaAutorizada(r)] : [])].join(' | ')),
             celda(r.observaciones || r.motivo)
         ].join(';'))
     ];
@@ -2451,8 +2569,26 @@ export function renderizarConfigHorario() {
     document.getElementById('cfg-descanso-desde').value = configHorario.descansoDesdeHs;
     document.getElementById('cfg-descuenta-descanso').checked = !!configHorario.descuentaDescanso;
     document.getElementById('cfg-descanso-max').value = configHorario.descansoMaxMin ?? 50;
+    document.getElementById('cfg-autorizadores').value = autorizadoresSalida().join(', ');
+    window.horariosMostrarAutorizadores();
     window.horariosActualizarSalidasConfig();
 }
+
+// Legajos escritos en el campo, separados por coma, espacio o punto y coma.
+const leerLegajosAutorizadores = texto => [...new Set(String(texto || '').split(/[,;\s]+/).map(normalizarLegajo).filter(Boolean))];
+
+// Muestra a quién corresponde cada legajo escrito, para no equivocarse de número.
+window.horariosMostrarAutorizadores = function() {
+    const destino = document.getElementById('cfg-autorizadores-nombres');
+    if (!destino) return;
+    const legajos = leerLegajosAutorizadores(document.getElementById('cfg-autorizadores')?.value);
+    destino.innerHTML = legajos.map(legajo => {
+        const op = buscarOperarioPorLegajo(legajo);
+        return op
+            ? `<span class="badge text-bg-success me-1">${escapeHtml(legajo)}: ${escapeHtml(op.nombre)}</span>`
+            : `<span class="badge text-bg-warning me-1">${escapeHtml(legajo)}: no está en Personal</span>`;
+    }).join('');
+};
 
 window.horariosGuardarConfig = async function() {
     const turnos = configHorario.turnos.map((turno, i) => ({
@@ -2475,6 +2611,7 @@ window.horariosGuardarConfig = async function() {
             descuentaDescanso: document.getElementById('cfg-descuenta-descanso').checked,
             descansoMaxMin: parseCantidad(document.getElementById('cfg-descanso-max').value),
             sabadoHasta: document.getElementById('cfg-sabado-hasta').value || '',
+            autorizadoresSalida: leerLegajosAutorizadores(document.getElementById('cfg-autorizadores').value),
             // Los feriados se editan aparte: se conservan tal como están.
             feriados: Array.isArray(configHorario.feriados) ? configHorario.feriados : null,
             actualizadoEn: new Date()

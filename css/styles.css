@@ -1406,7 +1406,11 @@
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23f0f0f0' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e") !important;
         }
         
-        body.light-mode select, body.light-mode select.form-select {
+        /* Flecha oscura para los desplegables en tema claro (una sola, a la derecha). Los selectores propios del reporte llevan su icono aparte. */
+        body.light-mode select:not(.hor-periodo-select):not(.hor-selector-select), body.light-mode select.form-select {
+            background-repeat: no-repeat !important;
+            background-position: right 0.75rem center !important;
+            background-size: 16px 12px !important;
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23333' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e") !important;
         }
 
@@ -2565,3 +2569,57 @@ body.light-mode .hor-periodo-select option { background-color: #ffffff; color: #
     .hor-torta-centro { inset: 16px; }
 }
 @media (max-width: 575.98px) { .hor-selector-nombre h4 { min-width: 0 !important; } }
+
+/* ══════════ DÍAS NO LABORABLES: feriados y domingos en el calendario; lista de feriados ══════════ */
+:root { --hor-feriado: #fb923c; }
+body.light-mode { --hor-feriado: #c2410c; }
+/* Sin registro: el día se pinta tenue (feriado) o rayado (domingo); con registro, conserva su color y suma un borde */
+.hor-cal-dia.hor-cal-feriado { box-shadow: inset 0 0 0 2px var(--hor-feriado); }
+.hor-cal-dia.hor-cal-feriado.hor-cal-vacio,
+.hor-cal-dia.hor-cal-feriado.hor-cal-fuera { --cal: color-mix(in srgb, var(--hor-feriado) 28%, transparent); color: var(--text-color); opacity: 1; }
+.hor-cal-dia.hor-cal-domingo.hor-cal-vacio,
+.hor-cal-dia.hor-cal-domingo.hor-cal-fuera {
+    background-image: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in srgb, var(--text-color) 13%, transparent) 4px 6px);
+}
+.hor-leyenda span.hor-leyenda-feriado { --cal: color-mix(in srgb, var(--hor-feriado) 40%, transparent); }
+.hor-leyenda span.hor-leyenda-feriado::before { border-color: var(--hor-feriado); }
+.hor-leyenda span.hor-leyenda-domingo::before { background-image: repeating-linear-gradient(135deg, transparent 0 2px, color-mix(in srgb, var(--text-color) 35%, transparent) 2px 3px); }
+.hor-llegada[data-estado="no_laborable"] { color: var(--hor-feriado); }
+
+.cfg-feriado-nuevo { display: grid; grid-template-columns: 10rem minmax(0, 1fr) auto; gap: 0.5rem; margin-bottom: 0.75rem; }
+.cfg-feriados-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; max-height: 22rem; overflow-y: auto; }
+.cfg-feriados-lista li { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr) auto; align-items: center; gap: 0.6rem; padding: 0.35rem 0.25rem; border-bottom: 1px solid var(--input-border); font-size: 0.88rem; }
+.cfg-feriados-lista li:last-child { border-bottom: 0; }
+.cfg-feriado-fecha { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--hor-feriado); }
+.cfg-feriado-nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cfg-feriados-lista .cfg-feriados-vacio { display: block; text-align: center; color: color-mix(in srgb, var(--text-color) 65%, transparent); border: 0; }
+@media (max-width: 575.98px) { .cfg-feriado-nuevo { grid-template-columns: 1fr; } }
+/* Botón de eliminar armado: espera el segundo toque */
+.hor-eliminar-armado { animation: eliminarArmado 0.9s ease-in-out infinite alternate; }
+@keyframes eliminarArmado { from { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.55); } to { box-shadow: 0 0 0 5px rgba(220, 53, 69, 0); } }
+@media (prefers-reduced-motion: reduce) { .hor-eliminar-armado { animation: none; } }
+
+/* Engranaje de Configuración en la barra: solo visible mientras se está en esa ventana (en el celular, nunca) */
+.dock > .dock-item.dock-solo-activo:not(.active) { display: none; }
+@media (max-width: 767.98px) { .dock > .dock-item.dock-solo-activo { display: none !important; } }
+
+/* ══════════ TEMA CLARO: más contraste y color ══════════
+   Fondo con más presencia, tarjetas un poco más sólidas, texto más oscuro y reflejos del vidrio
+   más suaves (con mucho blanco encima los colores se veían lavados). */
+body.light-mode {
+    --background-start: #c7a3f2;
+    --background-end: #f1e2ff;
+    --card-bg: rgba(255, 255, 255, 0.58);
+    --text-color: #1f1830;
+    --accent-color: #1f9d3f;
+    --shadow-color: rgba(76, 29, 149, 0.16);
+    --input-border: rgba(76, 29, 149, 0.16);
+    --navbar-bg: rgba(255, 255, 255, 0.55);
+    --navbar-text: #1f1830;
+    --vidrio-reflejo: rgba(255, 255, 255, 0.2);
+    --vidrio-sombra-baja: rgba(255, 255, 255, 0.12);
+    --vidrio-borde: rgba(255, 255, 255, 0.7);
+}
+body.light-mode .text-muted,
+body.light-mode .hor-tabla .text-muted { color: rgba(31, 24, 48, 0.62) !important; }
+body.light-mode .dock-burbuja { background: linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.05) 48%, rgba(255, 255, 255, 0.12)), color-mix(in srgb, var(--accent-color) 52%, transparent); border-color: color-mix(in srgb, var(--accent-color) 70%, white); }

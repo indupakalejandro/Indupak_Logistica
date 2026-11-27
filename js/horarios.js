@@ -17,8 +17,49 @@ const CONFIG_HORARIO_POR_DEFECTO = {
     extrasFraccionMin: 60,
     // Una marca pasadas estas horas desde la entrada inicia el descanso; antes, es la salida.
     descansoDesdeHs: 4,
-    descuentaDescanso: false
+    descuentaDescanso: false,
+    // Los sábados la jornada termina a esta hora (vacío: el sábado es un día normal). Los domingos no se trabaja.
+    sabadoHasta: '12:00',
+    // null: se usan los feriados nacionales precargados. Una vez editados en Configuración, se guarda la lista.
+    feriados: null
 };
+
+// Feriados nacionales de Argentina (ley 27.399), con los trasladables ya movidos al lunes según la ley.
+// Se pueden quitar o agregar desde Configuración → Control Horario.
+export const FERIADOS_NACIONALES = [
+    ['2026-01-01', 'Año Nuevo'],
+    ['2026-02-16', 'Carnaval'],
+    ['2026-02-17', 'Carnaval'],
+    ['2026-03-24', 'Día de la Memoria por la Verdad y la Justicia'],
+    ['2026-04-02', 'Día del Veterano y de los Caídos en Malvinas'],
+    ['2026-04-03', 'Viernes Santo'],
+    ['2026-05-01', 'Día del Trabajador'],
+    ['2026-05-25', 'Revolución de Mayo'],
+    ['2026-06-15', 'Paso a la Inmortalidad del Gral. Güemes'],
+    ['2026-06-20', 'Paso a la Inmortalidad del Gral. Belgrano'],
+    ['2026-07-09', 'Día de la Independencia'],
+    ['2026-08-17', 'Paso a la Inmortalidad del Gral. San Martín'],
+    ['2026-10-12', 'Día del Respeto a la Diversidad Cultural'],
+    ['2026-11-23', 'Día de la Soberanía Nacional'],
+    ['2026-12-08', 'Inmaculada Concepción de María'],
+    ['2026-12-25', 'Navidad'],
+    ['2027-01-01', 'Año Nuevo'],
+    ['2027-02-08', 'Carnaval'],
+    ['2027-02-09', 'Carnaval'],
+    ['2027-03-24', 'Día de la Memoria por la Verdad y la Justicia'],
+    ['2027-03-26', 'Viernes Santo'],
+    ['2027-04-02', 'Día del Veterano y de los Caídos en Malvinas'],
+    ['2027-05-01', 'Día del Trabajador'],
+    ['2027-05-25', 'Revolución de Mayo'],
+    ['2027-06-20', 'Paso a la Inmortalidad del Gral. Belgrano'],
+    ['2027-06-21', 'Paso a la Inmortalidad del Gral. Güemes'],
+    ['2027-07-09', 'Día de la Independencia'],
+    ['2027-08-16', 'Paso a la Inmortalidad del Gral. San Martín'],
+    ['2027-10-11', 'Día del Respeto a la Diversidad Cultural'],
+    ['2027-11-20', 'Día de la Soberanía Nacional'],
+    ['2027-12-08', 'Inmaculada Concepción de María'],
+    ['2027-12-25', 'Navidad']
+].map(([fecha, nombre]) => ({ fecha, nombre }));
 
 const ESTADOS = {
     sin_registrar: { label: 'Sin cargar', css: 'pendiente', icon: 'bi-hourglass-split' },
@@ -171,16 +212,51 @@ function jornadaEn(momento) {
 
 const jornadaActual = () => jornadaEn(new Date());
 
+// ---- Días laborables: sábados hasta el mediodía; domingos y feriados no se trabaja (y nadie figura como faltante) ----
+const feriadosVigentes = () => Array.isArray(configHorario.feriados) ? configHorario.feriados : FERIADOS_NACIONALES;
+export const feriadoDe = fecha => feriadosVigentes().find(f => f.fecha === fecha) || null;
+
+/**
+ * Qué jornada corresponde a un turno que empieza en esa fecha:
+ * - normal: la jornada completa.
+ * - sábado: hasta la hora configurada (por defecto 12:00). Un turno que empieza después es un día no laborable.
+ * - domingo o feriado: día no laborable. Nadie figura como faltante; si alguien trabaja, sus horas se cuentan normal.
+ * Devuelve { tipo, nombre, laborable, jornadaMin, salida }.
+ */
+function reglaDelDia(fecha, turno) {
+    const jornadaCompleta = configHorario.jornadaHs * 60;
+    const salidaNormal = turno ? desdeMinutos(aMinutos(turno.entrada) + jornadaCompleta) : '';
+    if (!fecha) return { tipo: 'normal', nombre: '', laborable: true, jornadaMin: jornadaCompleta, salida: salidaNormal };
+    const feriado = feriadoDe(fecha);
+    if (feriado) return { tipo: 'feriado', nombre: feriado.nombre, laborable: false, jornadaMin: jornadaCompleta, salida: salidaNormal };
+    const diaSemana = parsearFecha(fecha).getDay();
+    if (diaSemana === 0) return { tipo: 'domingo', nombre: 'Domingo', laborable: false, jornadaMin: jornadaCompleta, salida: salidaNormal };
+    if (diaSemana === 6 && configHorario.sabadoHasta && turno) {
+        const inicio = aMinutos(turno.entrada);
+        const fin = aMinutos(configHorario.sabadoHasta);
+        if (inicio < fin) {
+            const jornadaMin = Math.min(jornadaCompleta, fin - inicio);
+            return { tipo: 'sabado', nombre: `Sábado hasta las ${configHorario.sabadoHasta}`, laborable: true, jornadaMin, salida: desdeMinutos(inicio + jornadaMin) };
+        }
+        return { tipo: 'sabado_libre', nombre: `Sábado (se trabaja hasta las ${configHorario.sabadoHasta})`, laborable: false, jornadaMin: jornadaCompleta, salida: salidaNormal };
+    }
+    return { tipo: 'normal', nombre: '', laborable: true, jornadaMin: jornadaCompleta, salida: salidaNormal };
+}
+
+// Hora de salida del turno de esa entrada en esa fecha (el sábado, la del mediodía).
+const salidaTurnoDe = (entrada, fecha) => reglaDelDia(fecha, turnoParaHora(entrada)).salida;
+
 // Horas normales y extras propuestas. Llegar antes de la entrada no suma horas.
-function calcularHoras(entrada, salida) {
+function calcularHoras(entrada, salida, fecha = '') {
     const turno = turnoParaHora(entrada);
     const fin = aMinutos(salida);
     if (!turno || isNaN(fin)) return { normales: 0, extras: 0 };
     const trabajados = modulo(fin - (aMinutos(turno.entrada) + turno.minutosTarde), 1440);
-    const { jornadaHs, extrasFraccionMin } = configHorario;
-    const excedente = Math.max(0, trabajados - jornadaHs * 60);
+    const { jornadaMin } = reglaDelDia(fecha, turno);
+    const { extrasFraccionMin } = configHorario;
+    const excedente = Math.max(0, trabajados - jornadaMin);
     return {
-        normales: Number(Math.min(trabajados / 60, jornadaHs).toFixed(2)),
+        normales: Number((Math.min(trabajados, jornadaMin) / 60).toFixed(2)),
         extras: (Math.floor(excedente / extrasFraccionMin) * extrasFraccionMin) / 60
     };
 }
@@ -226,7 +302,7 @@ const minutosFueraDe = (entrada, salidas) => salidas
 function salidaProgramadaDe(reg) {
     if (reg.salidaProgramada) return reg.salidaProgramada;
     if (!reg.salidaMarcada && !salidaEnCurso(salidasDe(reg)) && reg.salida) return reg.salida;
-    return turnoParaHora(reg.entrada)?.salida || '';
+    return salidaTurnoDe(reg.entrada, reg.fecha) || '';
 }
 
 // ---- Descansos ----
@@ -243,13 +319,13 @@ const minutosDescansoDe = (entrada, descansos) => descansos
  * - Se fue sin volver (novedad): termina en esa salida.
  * - Salidas con reingreso y, si así se configuró, el descanso: se descuentan.
  */
-function recalcularJornada({ entrada, salidaProgramada, salidas = [], descansos = [], salidaMarcada = '', horasExtras = 0 }) {
+function recalcularJornada({ entrada, fecha = '', salidaProgramada, salidas = [], descansos = [], salidaMarcada = '', horasExtras = 0 }) {
     const ordenadas = ordenarSalidas(entrada, salidas);
     const minutosFuera = minutosFueraDe(entrada, ordenadas);
     const minutosDescanso = minutosDescansoDe(entrada, descansos);
     const seFue = salidaEnCurso(ordenadas);
     const salida = seFue ? ordenadas[ordenadas.length - 1].salida : (salidaMarcada || salidaProgramada);
-    const { normales, extras } = calcularHoras(entrada, salida);
+    const { normales, extras } = calcularHoras(entrada, salida, fecha);
     const descuento = minutosFuera + (configHorario.descuentaDescanso ? minutosDescanso : 0);
     return {
         salidas: ordenadas,
@@ -267,6 +343,7 @@ function recalcularJornada({ entrada, salidaProgramada, salidas = [], descansos 
 function datosJornada(reg, cambios = {}) {
     return recalcularJornada({
         entrada: reg.entrada,
+        fecha: reg.fecha,
         salidaProgramada: salidaProgramadaDe(reg),
         salidas: salidasDe(reg),
         descansos: descansosDe(reg),
@@ -453,12 +530,21 @@ function describirLlegada(turno) {
 function pintarRelojPlanilla(jornada) {
     escribirTexto('horarios-reloj', jornada.hora);
     escribirTexto('horarios-fecha-titulo', formatearFechaTexto(jornada.fecha));
-    escribirTexto('horarios-turno-actual', `Turno ${jornada.turno.nombre}: ${jornada.turno.entrada} a ${jornada.turno.salida}`);
+    const regla = reglaDelDia(jornada.fecha, jornada.turno);
+    escribirTexto('horarios-turno-actual', `Turno ${jornada.turno.nombre}: ${jornada.turno.entrada} a ${regla.salida}`);
 
     const llegada = document.getElementById('horarios-llegada-estado');
     if (!llegada) return;
+    // Domingo, feriado o sábado por la tarde: no hay jornada; si alguien viene, son horas extra.
+    if (!regla.laborable) {
+        llegada.dataset.estado = 'no_laborable';
+        llegada.textContent = regla.tipo === 'feriado'
+            ? `Feriado: ${regla.nombre}. No se trabaja: nadie figura como faltante.`
+            : `${regla.tipo === 'domingo' ? 'Domingo' : regla.nombre}: no se trabaja. Nadie figura como faltante.`;
+        return;
+    }
     llegada.dataset.estado = jornada.turno.estado;
-    llegada.textContent = `Si llega ahora: ${describirLlegada(jornada.turno)}`;
+    llegada.textContent = `${regla.tipo === 'sabado' ? `Sábado, hasta las ${regla.salida}. ` : ''}Si llega ahora: ${describirLlegada(jornada.turno)}`;
 }
 
 function actualizarRelojPlanilla() {
@@ -496,7 +582,23 @@ export function renderizarPlanillaDiaria() {
     const sinRegistro = activos.filter(op => !conRegistro.has(op.id));
     const visibles = ordenarPorNombre(sinRegistro.filter(coincideBusqueda));
 
-    actualizarProgresoDia(activos.length, sinRegistro.length);
+    // Domingo, feriado o sábado por la tarde: nadie está pendiente ni figura como faltante.
+    // Las tarjetas quedan guardadas detrás de un botón, por si alguien viene a trabajar igual.
+    const regla = reglaDelDia(jornada.fecha, jornada.turno);
+    if (!regla.laborable) {
+        const vinieron = activos.length - sinRegistro.length;
+        const barra = document.getElementById('horarios-progreso-barra');
+        if (barra) barra.style.width = '0%';
+        escribirTexto('horarios-progreso-texto', `Día no laborable${vinieron ? ` · ${vinieron} vinieron` : ''}`);
+        if (!mostrarPendientesNoLaborable) {
+            lista.innerHTML = `<div class="hor-vacio"><i class="bi bi-calendar-heart"></i>${regla.tipo === 'feriado' ? `Feriado: ${escapeHtml(regla.nombre)}.` : regla.tipo === 'domingo' ? 'Domingo.' : escapeHtml(regla.nombre) + '.'} No se trabaja y nadie figura como faltante.
+                ${sinRegistro.length ? '<button class="btn btn-sm btn-outline-secondary" onclick="horariosMostrarPendientesNoLaborable()"><i class="bi bi-person-check me-1"></i>Registrar a alguien que vino</button>' : ''}</div>`;
+            return;
+        }
+    } else {
+        mostrarPendientesNoLaborable = false;
+        actualizarProgresoDia(activos.length, sinRegistro.length);
+    }
 
     if (visibles.length === 0) {
         lista.innerHTML = mensajeListaVacia(activos.length, sinRegistro.length);
@@ -504,6 +606,13 @@ export function renderizarPlanillaDiaria() {
     }
     sincronizarTarjetas(lista, visibles);
 }
+
+let mostrarPendientesNoLaborable = false;
+window.horariosMostrarPendientesNoLaborable = function() {
+    mostrarPendientesNoLaborable = true;
+    document.getElementById('horarios-diario-lista').innerHTML = '';
+    renderizarPlanillaDiaria();
+};
 
 // Quienes ya entraron en la jornada: desde acá se anota si se van antes o si vuelven.
 let enPlantaTodosLosTurnos = false;
@@ -685,9 +794,20 @@ window.horariosFichar = async function(operarioId) {
     return window.horariosMarcar(reg.id);
 };
 
+// El número del lector y el "DNI / Legajo" de Personal se comparan sin puntos, espacios ni ceros a la izquierda:
+// "38.123.456" coincide con "38123456" y "007" con "7".
+const normalizarLegajo = valor => {
+    const texto = String(valor ?? '').trim().replace(/[\s.\-]/g, '');
+    return /^\d+$/.test(texto) ? texto.replace(/^0+(?=\d)/, '') : texto.toUpperCase();
+};
+function buscarOperarioPorLegajo(legajo) {
+    const buscado = normalizarLegajo(legajo);
+    if (!buscado) return null;
+    return state.operariosData.find(o => o.activo !== false && normalizarLegajo(o.dni) === buscado) || null;
+}
 window.horariosFicharPorLegajo = function(legajo) {
     const buscado = String(legajo || '').trim();
-    const op = state.operariosData.find(o => o.activo !== false && String(o.dni || '').trim() === buscado);
+    const op = buscarOperarioPorLegajo(buscado);
     if (!op) {
         showAlert(`No hay ningún operario activo con el legajo ${escapeHtml(buscado)}.`, 'warning');
         return Promise.resolve('desconocido');
@@ -906,16 +1026,21 @@ async function registrarEnJornada(operarioId, armarDatos) {
     }
 }
 
-function datosEntrada({ hora, turno }) {
+// Al entrar se propone el turno completo de ese día; al marcar la salida se recalcula con la hora real.
+// En domingos y feriados las horas se cuentan igual que un día normal (el día solo deja de contar como falta).
+function datosEntrada({ hora, turno, fecha }) {
+    const regla = reglaDelDia(fecha, turno);
+    const { normales } = calcularHoras(hora, regla.salida, fecha);
     return {
         estado: turno.estado,
         turno: turno.nombre,
         entrada: hora,
-        salida: turno.salida,
-        horasTrabajadas: Number(Math.max(0, configHorario.jornadaHs - turno.minutosTarde / 60).toFixed(2)),
+        salida: regla.salida,
+        horasTrabajadas: normales,
         minutosTarde: turno.minutosTarde,
         minutosTolerancia: turno.minutosTolerancia,
         horasExtras: 0,
+        ...(regla.tipo !== 'normal' ? { tipoDia: regla.tipo } : {}),
         ultimaMarca: Date.now()
     };
 }
@@ -1045,7 +1170,7 @@ async function procesarMarcasLector() {
 async function procesarMarcaLector(marca) {
     const refMarca = doc(getUserCollection('marcasLector'), marca.id);
     const legajo = String(marca.legajo ?? '').trim();
-    const op = state.operariosData.find(o => o.activo !== false && String(o.dni || '').trim() === legajo);
+    const op = buscarOperarioPorLegajo(legajo);
     const momento = marca.momento;
 
     // Legajo todavía no cargado en Personal: la marca queda esperando (se procesa sola cuando se cargue).
@@ -1532,13 +1657,18 @@ function renderizarCalendario(registros, desde, hasta) {
         const css = reg ? ESTADOS[reg.estado]?.css || 'pendiente' : 'vacio';
         const salidas = reg ? salidasDe(reg) : [];
         const conSalida = salidas.length ? ' hor-cal-con-salida' : '';
+        // Domingos y feriados se marcan siempre, también los días que todavía no llegaron.
+        const feriado = feriadoDe(fecha);
+        const esDomingo = new Date(y, m, dia).getDay() === 0;
+        const claseDia = feriado ? ' hor-cal-feriado' : esDomingo ? ' hor-cal-domingo' : '';
+        const textoDia = feriado ? ` (feriado: ${feriado.nombre})` : esDomingo ? ' (domingo)' : '';
         const descripcion = reg
-            ? `${formatearFechaCorta(fecha)}: ${ESTADOS[reg.estado]?.label || reg.estado}${salidas.length ? `, ${salidas.map(s => textoSalida(s)).join('; ')}` : ''}. Clic para editar.`
-            : `${formatearFechaCorta(fecha)}: sin cargar. Clic para cargar.`;
+            ? `${formatearFechaCorta(fecha)}${textoDia}: ${ESTADOS[reg.estado]?.label || reg.estado}${salidas.length ? `, ${salidas.map(s => textoSalida(s)).join('; ')}` : ''}. Clic para editar.`
+            : `${formatearFechaCorta(fecha)}${textoDia}: sin cargar. Clic para cargar.`;
         const accion = reg ? `horariosAbrirModalEditarAsistencia('${reg.id}')` : `horariosAbrirModalNuevaAsistencia('${fecha}')`;
         celdas += enRango
-            ? `<button type="button" class="hor-cal-dia hor-cal-${css}${conSalida}${fecha === hoy ? ' hor-cal-hoy' : ''}" title="${escapeHtml(descripcion)}" aria-label="${escapeHtml(descripcion)}" onclick="${accion}">${dia}</button>`
-            : `<span class="hor-cal-dia hor-cal-fuera">${dia}</span>`;
+            ? `<button type="button" class="hor-cal-dia hor-cal-${css}${conSalida}${claseDia}${fecha === hoy ? ' hor-cal-hoy' : ''}" title="${escapeHtml(descripcion)}" aria-label="${escapeHtml(descripcion)}" onclick="${accion}">${dia}</button>`
+            : `<span class="hor-cal-dia hor-cal-fuera${claseDia}"${textoDia ? ` title="${escapeHtml(formatearFechaCorta(fecha) + textoDia)}"` : ''}>${dia}</span>`;
     }
 
     titulo.textContent = `${nombresMes[m]} ${y}`;
@@ -1960,7 +2090,7 @@ window.horariosCambioSalidasModal = function() {
         inputSalida.value = salidas[salidas.length - 1].salida;
         inputSalida.dataset.porSalida = '1';
     } else if (inputSalida.dataset.porSalida) {
-        inputSalida.value = inputSalida.dataset.programada || turnoParaHora(entrada)?.salida || '';
+        inputSalida.value = inputSalida.dataset.programada || salidaTurnoDe(entrada, document.getElementById('edit-asistencia-fecha').value) || '';
         delete inputSalida.dataset.porSalida;
     }
     recalcularHorasModal();
@@ -1983,7 +2113,7 @@ function recalcularHorasModal() {
     const entrada = document.getElementById('edit-asistencia-entrada').value;
     const salida = document.getElementById('edit-asistencia-salida').value;
     if (!entrada || !salida) return;
-    const { normales, extras } = calcularHoras(entrada, salida);
+    const { normales, extras } = calcularHoras(entrada, salida, document.getElementById('edit-asistencia-fecha').value);
     const fuera = minutosFueraDe(entrada, leerSalidasModal().filter(s => s.salida && s.reingreso));
     const descanso = configHorario.descuentaDescanso ? minutosDescansoDe(entrada, leerDescansoModal()) : 0;
     document.getElementById('edit-asistencia-horas').value = horaReloj(Math.max(0, normales - (fuera + descanso) / 60));
@@ -2010,7 +2140,7 @@ function completarModalAsistencia({ id, nombre, reg, fecha, permiteEliminar }) {
     const descanso = descansosDe(reg)[0];
     asignar('descanso-inicio', descanso?.inicio || '');
     asignar('descanso-fin', descanso?.fin || '');
-    document.getElementById('edit-asistencia-extras').dataset.auto = reg?.entrada && reg?.salida ? calcularHoras(reg.entrada, reg.salida).extras : 0;
+    document.getElementById('edit-asistencia-extras').dataset.auto = reg?.entrada && reg?.salida ? calcularHoras(reg.entrada, reg.salida, reg.fecha).extras : 0;
     document.getElementById('edit-asistencia-btn-eliminar').style.visibility = permiteEliminar ? 'visible' : 'hidden';
 
     const salidas = reg?.entrada ? ordenarSalidas(reg.entrada, salidasDe(reg)) : [];
@@ -2049,10 +2179,11 @@ window.horariosProcesarLlegadaModal = function() {
 
     // Si la salida era la del turno (no se marcó a mano), sigue al turno nuevo cuando cambia la entrada.
     const salida = document.getElementById('edit-asistencia-salida');
+    const salidaDelTurno = salidaTurnoDe(entrada, document.getElementById('edit-asistencia-fecha').value);
     if (!salida.value || (!salida.dataset.porSalida && salida.value === salida.dataset.programada)) {
-        salida.value = turno.salida;
+        salida.value = salidaDelTurno;
     }
-    salida.dataset.programada = turno.salida;
+    salida.dataset.programada = salidaDelTurno;
     recalcularHorasModal();
 };
 
@@ -2107,7 +2238,7 @@ window.horariosGuardarEdicionAsistencia = async function() {
         }
     }
     const inputSalida = document.getElementById('edit-asistencia-salida');
-    const programadaTurno = inputSalida.dataset.programada || turnoParaHora(entrada)?.salida || '';
+    const programadaTurno = inputSalida.dataset.programada || salidaTurnoDe(entrada, fecha) || '';
     const seFue = salidaEnCurso(salidas);
     // La salida cuenta como marcada si ya lo estaba o si se cargó una hora distinta a la del turno.
     const salidaMarcada = esPresencia(estado) && !seFue && inputSalida.value
@@ -2162,21 +2293,50 @@ window.horariosGuardarEdicionAsistencia = async function() {
     }
 };
 
-window.horariosEliminarRegistroAsistencia = function() {
-    const id = document.getElementById('edit-asistencia-id').value;
-    if (!id) return;
+// Eliminar sin otra ventana encima: el primer toque arma el botón ("Tocá de nuevo para eliminar")
+// y el segundo, dentro de unos segundos, borra. Si no se confirma, el botón vuelve a la normalidad.
+const ESPERA_CONFIRMAR_ELIMINAR_MS = 4000;
+let temporizadorEliminar = 0;
 
-    showConfirm('¿Eliminar este registro de asistencia?', async ok => {
-        if (!ok) return;
-        try {
-            await deleteDoc(doc(getUserCollection('asistencia'), id));
-            showNotification('Registro de asistencia eliminado.', 'info');
-            bootstrap.Modal.getInstance(document.getElementById('modalEditarAsistencia'))?.hide();
-        } catch (e) {
-            console.error('Error eliminando asistencia:', e);
-            showAlert('No se pudo eliminar la asistencia.', 'danger');
-        }
-    });
+function desarmarBotonEliminar() {
+    clearTimeout(temporizadorEliminar);
+    const boton = document.getElementById('edit-asistencia-btn-eliminar');
+    if (!boton) return;
+    delete boton.dataset.armado;
+    boton.classList.remove('btn-danger', 'hor-eliminar-armado');
+    boton.classList.add('btn-outline-danger');
+    boton.innerHTML = '<i class="bi bi-trash-fill me-1"></i>Eliminar Registro';
+}
+document.getElementById('modalEditarAsistencia')?.addEventListener('hidden.bs.modal', desarmarBotonEliminar);
+
+window.horariosEliminarRegistroAsistencia = async function() {
+    const id = document.getElementById('edit-asistencia-id').value;
+    const boton = document.getElementById('edit-asistencia-btn-eliminar');
+    if (!id || !boton) return;
+
+    if (!boton.dataset.armado) {
+        boton.dataset.armado = '1';
+        boton.classList.remove('btn-outline-danger');
+        boton.classList.add('btn-danger', 'hor-eliminar-armado');
+        boton.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i>Tocá de nuevo para eliminar';
+        clearTimeout(temporizadorEliminar);
+        temporizadorEliminar = setTimeout(desarmarBotonEliminar, ESPERA_CONFIRMAR_ELIMINAR_MS);
+        return;
+    }
+
+    clearTimeout(temporizadorEliminar);
+    boton.disabled = true;
+    try {
+        await deleteDoc(doc(getUserCollection('asistencia'), id));
+        showNotification('Registro de asistencia eliminado.', 'info');
+        bootstrap.Modal.getInstance(document.getElementById('modalEditarAsistencia'))?.hide();
+    } catch (e) {
+        console.error('Error eliminando asistencia:', e);
+        showAlert('No se pudo eliminar la asistencia.', 'danger');
+    } finally {
+        boton.disabled = false;
+        desarmarBotonEliminar();
+    }
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2195,8 +2355,10 @@ window.horariosActualizarSalidasConfig = function() {
 
 // No pisa lo que se esté escribiendo si llega una actualización mientras se edita.
 export function renderizarConfigHorario() {
+    window.horariosRenderizarFeriados();
     const form = document.getElementById('formConfigHorario');
     if (!form || form.contains(document.activeElement)) return;
+    document.getElementById('cfg-sabado-hasta').value = configHorario.sabadoHasta || '';
 
     configHorario.turnos.forEach((turno, i) => {
         document.getElementById(`cfg-turno-${i}`).value = turno.entrada;
@@ -2229,6 +2391,9 @@ window.horariosGuardarConfig = async function() {
             extrasFraccionMin: parseCantidad(document.getElementById('cfg-extras').value),
             descansoDesdeHs: parseCantidad(document.getElementById('cfg-descanso-desde').value),
             descuentaDescanso: document.getElementById('cfg-descuenta-descanso').checked,
+            sabadoHasta: document.getElementById('cfg-sabado-hasta').value || '',
+            // Los feriados se editan aparte: se conservan tal como están.
+            feriados: Array.isArray(configHorario.feriados) ? configHorario.feriados : null,
             actualizadoEn: new Date()
         });
         showNotification('Configuración de Control Horario guardada.', 'success');
@@ -2236,4 +2401,79 @@ window.horariosGuardarConfig = async function() {
         console.error('Error guardando configuración:', e);
         showAlert('No se pudo guardar la configuración.', 'danger');
     }
+};
+
+// ---- Feriados (Configuración → Control Horario) ----
+// Se guardan al instante, solo el campo feriados del documento de configuración.
+async function guardarFeriados(lista) {
+    const ordenada = [...lista].sort((a, b) => a.fecha.localeCompare(b.fecha));
+    await setDoc(doc(getUserCollection('configuracion'), 'controlHorario'), { feriados: ordenada, actualizadoEn: new Date() }, { merge: true });
+}
+
+window.horariosRenderizarFeriados = function() {
+    const lista = document.getElementById('cfg-feriados-lista');
+    const selector = document.getElementById('cfg-feriados-anio');
+    if (!lista || !selector) return;
+    const feriados = feriadosVigentes();
+    const anioActual = String(new Date().getFullYear());
+    const anios = [...new Set([anioActual, ...feriados.map(f => f.fecha.slice(0, 4))])].sort();
+    const elegido = selector.value && anios.includes(selector.value) ? selector.value : anioActual;
+    selector.innerHTML = anios.map(a => `<option value="${a}"${a === elegido ? ' selected' : ''}>${a}</option>`).join('');
+
+    const delAnio = feriados.filter(f => f.fecha.startsWith(elegido));
+    const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    lista.innerHTML = delAnio.length
+        ? delAnio.map(f => {
+            const d = parsearFecha(f.fecha);
+            return `<li>
+                <span class="cfg-feriado-fecha">${diasSemana[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}</span>
+                <span class="cfg-feriado-nombre">${escapeHtml(f.nombre)}</span>
+                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" title="Quitar feriado" aria-label="Quitar ${escapeHtml(f.nombre)}" onclick="horariosQuitarFeriado('${f.fecha}')"><i class="bi bi-x-lg"></i></button>
+            </li>`;
+        }).join('')
+        : `<li class="cfg-feriados-vacio">No hay feriados cargados para ${elegido}.</li>`;
+};
+
+window.horariosAgregarFeriado = async function() {
+    const fecha = document.getElementById('cfg-feriado-fecha').value;
+    const nombre = document.getElementById('cfg-feriado-nombre').value.trim();
+    if (!fecha || !nombre) {
+        showAlert('Completá la fecha y el nombre del feriado.', 'warning');
+        return;
+    }
+    const actuales = feriadosVigentes().filter(f => f.fecha !== fecha);
+    try {
+        await guardarFeriados([...actuales, { fecha, nombre }]);
+        document.getElementById('cfg-feriado-fecha').value = '';
+        document.getElementById('cfg-feriado-nombre').value = '';
+        document.getElementById('cfg-feriados-anio').value = fecha.slice(0, 4);
+        showNotification(`Feriado agregado: ${escapeHtml(nombre)} (${formatearFechaCorta(fecha)}).`, 'success');
+    } catch (e) {
+        console.error('Error guardando feriado:', e);
+        showAlert('No se pudo guardar el feriado.', 'danger');
+    }
+};
+
+window.horariosQuitarFeriado = async function(fecha) {
+    const feriado = feriadoDe(fecha);
+    try {
+        await guardarFeriados(feriadosVigentes().filter(f => f.fecha !== fecha));
+        showNotification(`Feriado quitado: ${escapeHtml(feriado?.nombre || fecha)}.`, 'info');
+    } catch (e) {
+        console.error('Error quitando feriado:', e);
+        showAlert('No se pudo quitar el feriado.', 'danger');
+    }
+};
+
+window.horariosRestaurarFeriados = function() {
+    showConfirm('¿Volver a la lista de feriados nacionales?<br><small>Se pierden los feriados que agregaste o quitaste a mano.</small>', async ok => {
+        if (!ok) return;
+        try {
+            await guardarFeriados(FERIADOS_NACIONALES);
+            showNotification('Se restauraron los feriados nacionales.', 'success');
+        } catch (e) {
+            console.error('Error restaurando feriados:', e);
+            showAlert('No se pudieron restaurar los feriados.', 'danger');
+        }
+    });
 };

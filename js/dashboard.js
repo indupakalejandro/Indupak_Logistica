@@ -90,7 +90,7 @@ export function renderizarPersonalDashboard() {
         filaMetrica('En tolerancia', r.tolerancias, tolerancias, `${formatCantidad(tolerancias, 1)}% de las entradas`),
         filaMetrica('Llegadas tarde', r.tardes, tardes, `Fuera de tolerancia · ${formatCantidad(tardes, 1)}% de las entradas`),
         filaMetrica('Faltas', faltas, porcentaje(faltas, laborables), `${r.injustificadas} injustificadas · ${r.justificadas} justificadas`),
-        filaMetrica('Horas extras', `${formatCantidad(r.horasExtras, 1)} hs`, extras, `${formatCantidad(extras, 1)}% de las horas normales`)
+        filaMetrica('Horas extras', `${horaReloj(r.horasExtras)} h`, extras, `${formatCantidad(extras, 1)}% de las horas normales`)
     ].join('');
 }
 

@@ -1716,13 +1716,105 @@ function actualizarVistaReporteSeleccionado() {
     const hasta = state.horariosReporteHasta;
     const registros = registrosDelOperario(opId, desde, hasta).sort((a, b) => b.fecha.localeCompare(a.fecha));
     const resumen = calcularResumen(registros);
+    const sinConfirmar = faltasSinConfirmar(op, desde, hasta, registros);
 
     renderizarPerfilReporte(op, resumen);
     renderizarKpisReporte(resumen);
-    renderizarCalendario(registros, desde, hasta);
+    renderizarCalendario(registros, desde, hasta, sinConfirmar);
     renderizarTortaReporte(registros);
-    renderizarHistorialReporte(registros);
+    renderizarHistorialReporte(registros, sinConfirmar);
 }
+
+// ---- Faltas sin confirmar ----
+// Un día laborable ya pasado en que el operario no tiene ningún registro (no marcó ni se cargó nada) es una falta,
+// pero el motivo lo confirma una persona: justificada, injustificada o franco.
+const fechaDeValor = valor => {
+    const fecha = valor?.toDate ? valor.toDate() : valor instanceof Date ? valor : null;
+    return fecha && !isNaN(fecha) ? fechaISO(fecha) : '';
+};
+
+// Desde cuándo se le pueden contar faltas: desde que se lo cargó en Personal, pero nunca antes
+// del primer día que se usó el control horario (así no aparecen faltas de cuando el sistema no existía).
+function inicioDeFaltas(op) {
+    const fechas = state.asistenciaData.map(a => a.fecha).filter(Boolean).sort();
+    const primeroDelSistema = fechas[0] || '';
+    const primeroDelOperario = state.asistenciaData.filter(a => a.operarioId === op.id).map(a => a.fecha).sort()[0] || '';
+    const alta = fechaDeValor(op.creadoEn) || primeroDelOperario || primeroDelSistema;
+    if (!primeroDelSistema) return '';
+    return alta > primeroDelSistema ? alta : primeroDelSistema;
+}
+
+function faltasSinConfirmar(op, desde, hasta, registros) {
+    if (!op || op.eliminado || op.activo === false) return [];
+    const inicio = [desde, inicioDeFaltas(op)].filter(Boolean).sort().pop();
+    const ayer = sumarDias(fechaISO(new Date()), -1);
+    const fin = hasta && hasta < ayer ? hasta : ayer;
+    if (!inicio || inicio > fin) return [];
+    const cargados = new Set(registros.map(r => r.fecha));
+    const dias = [];
+    for (let fecha = inicio; fecha <= fin && dias.length < 400; fecha = sumarDias(fecha, 1)) {
+        if (!cargados.has(fecha) && reglaDelDia(fecha).laborable) dias.push(fecha);
+    }
+    return dias.reverse();
+}
+
+const BOTONES_FALTA = [
+    ['falta_injustificada', 'Injustificada'],
+    ['falta_justificada', 'Justificada'],
+    ['franco', 'Franco']
+];
+
+function filaFaltaSinConfirmar(fecha, operarioId) {
+    const botones = BOTONES_FALTA.map(([estado, texto]) => `
+        <button type="button" class="btn btn-sm hor-confirmar-falta hor-confirmar-${ESTADOS[estado].css}"
+            onclick="horariosConfirmarFalta('${operarioId}', '${fecha}', '${estado}', this)">
+            <i class="bi ${ESTADOS[estado].icon} me-1"></i>${texto}
+        </button>`).join('');
+    return `
+        <tr class="hor-fila-sin-confirmar">
+            <td data-label="Fecha"><strong>${formatearFechaCorta(fecha)}</strong></td>
+            <td data-label="Turno">—</td>
+            <td data-label="Estado"><span class="badge badge-asistencia-pendiente"><i class="bi bi-question-circle-fill me-1"></i>Falta sin confirmar</span></td>
+            <td data-label="Confirmar" colspan="6"><div class="hor-confirmar-falta-grupo"><small class="text-muted me-1">No marcó ni se cargó nada. ¿Qué fue?</small>${botones}</div></td>
+            <td class="text-center">
+                <button class="btn btn-sm btn-outline-primary py-0 px-2" title="Cargar el día a mano (por ejemplo, si vino)" aria-label="Cargar el ${formatearFechaCorta(fecha)} a mano" onclick="horariosAbrirModalNuevaAsistencia('${fecha}')">
+                    <i class="bi bi-pencil-fill" style="font-size:0.75rem;"></i>
+                </button>
+            </td>
+        </tr>`;
+}
+
+window.horariosConfirmarFalta = async function(operarioId, fecha, estado, boton) {
+    const op = state.operariosData.find(o => o.id === operarioId);
+    if (!op || !ESTADOS[estado]) return;
+    boton?.closest('tr')?.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    const docId = `${fecha}_${operarioId}`;
+    try {
+        await setDoc(doc(getUserCollection('asistencia'), docId), {
+            operarioId,
+            operarioNombre: op.nombre,
+            operarioPuesto: op.puesto || '',
+            fecha,
+            estado,
+            turno: '',
+            entrada: '',
+            salida: '',
+            horasTrabajadas: 0,
+            minutosTarde: 0,
+            horasExtras: 0,
+            observaciones: '',
+            motivo: '',
+            confirmadaPor: state.usuario?.usuario || '',
+            actualizadoEn: new Date()
+        });
+        showNotification(`<strong>${escapeHtml(op.nombre)}</strong>, ${formatearFechaCorta(fecha)}: ${ESTADOS[estado].label.toLowerCase()}.
+            <button type="button" class="hor-deshacer" onclick="horariosDeshacerRegistro('${docId}', this)">Deshacer</button>`, 'info', 8000);
+    } catch (e) {
+        console.error('Error confirmando la falta:', e);
+        boton?.closest('tr')?.querySelectorAll('button').forEach(b => { b.disabled = false; });
+        showAlert('No se pudo guardar. Revisá la conexión y volvé a intentar.', 'danger');
+    }
+};
 
 // Al cambiar de operario, el nombre sale deslizándose y desvaneciéndose, y entra el siguiente desde el otro lado.
 let direccionCambioOperario = 1;
@@ -1794,7 +1886,8 @@ function renderizarKpisReporte(r) {
     escribirTexto('rep-kpi-salidas-detalle', r.retiros ? `${r.retiros} sin volver` : r.diasConSalidas ? 'Siempre volvió' : 'Sin salidas');
 }
 
-function renderizarCalendario(registros, desde, hasta) {
+function renderizarCalendario(registros, desde, hasta, sinConfirmar = []) {
+    const pendientes = new Set(sinConfirmar);
     const cont = document.getElementById('horarios-reporte-calendario');
     const titulo = document.getElementById('horarios-cal-titulo');
     const anterior = document.getElementById('horarios-cal-anterior');
@@ -1843,7 +1936,7 @@ function renderizarCalendario(registros, desde, hasta) {
         const fecha = fechaISO(new Date(y, m, dia));
         const reg = porFecha.get(fecha);
         const enRango = (!desde || fecha >= desde) && (!hasta || fecha <= hasta) && fecha <= hoy;
-        const css = reg ? ESTADOS[reg.estado]?.css || 'pendiente' : 'vacio';
+        const css = reg ? ESTADOS[reg.estado]?.css || 'pendiente' : pendientes.has(fecha) ? 'sin-confirmar' : 'vacio';
         const salidas = reg ? salidasDe(reg) : [];
         const conSalida = salidas.length ? ' hor-cal-con-salida' : '';
         // Domingos y feriados se marcan siempre, también los días que todavía no llegaron.
@@ -1853,7 +1946,9 @@ function renderizarCalendario(registros, desde, hasta) {
         const textoDia = feriado ? ` (feriado: ${feriado.nombre})` : esDomingo ? ' (domingo)' : '';
         const descripcion = reg
             ? `${formatearFechaCorta(fecha)}${textoDia}: ${ESTADOS[reg.estado]?.label || reg.estado}${salidas.length ? `, ${salidas.map(s => textoSalida(s)).join('; ')}` : ''}. Clic para editar.`
-            : `${formatearFechaCorta(fecha)}${textoDia}: sin cargar. Clic para cargar.`;
+            : pendientes.has(fecha)
+                ? `${formatearFechaCorta(fecha)}: falta sin confirmar. Confirmala en el detalle por día, o clic para cargar el día.`
+                : `${formatearFechaCorta(fecha)}${textoDia}: sin cargar. Clic para cargar.`;
         const accion = reg ? `horariosAbrirModalEditarAsistencia('${reg.id}')` : `horariosAbrirModalNuevaAsistencia('${fecha}')`;
         celdas += enRango
             ? `<button type="button" class="hor-cal-dia hor-cal-${css}${conSalida}${claseDia}${fecha === hoy ? ' hor-cal-hoy' : ''}" title="${escapeHtml(descripcion)}" aria-label="${escapeHtml(descripcion)}" onclick="${accion}">${dia}</button>`
@@ -1904,7 +1999,7 @@ function htmlHorario(r) {
         + (descansos ?`<br><small class="text-muted"><i class="bi bi-cup-hot me-1"></i>${escapeHtml(descansos)}</small>` : '');
 }
 
-function renderizarHistorialReporte(registros) {
+function renderizarHistorialReporte(registros, sinConfirmar = []) {
     const tbody = document.getElementById('horarios-reporte-tbody');
     const footer = document.getElementById('horarios-reporte-footer');
     const filtroActivo = document.getElementById('horarios-reporte-filtro-activo');
@@ -1919,16 +2014,29 @@ function renderizarHistorialReporte(registros) {
     filtroActivo.innerHTML = filtro ? `${filtro.label}<i class="bi bi-x-lg"></i>` : '';
 
     const visibles = filtro ? registros.filter(filtro.coincide) : registros;
-    footer.textContent = `${visibles.length} de ${registros.length} día(s) cargados en el período.`;
-    escribirTexto('horarios-detalle-cuenta', filtro ? `(${visibles.length} de ${registros.length})` : `(${registros.length} día${registros.length === 1 ? '' : 's'})`);
-    abrirDetalle(filtro ? true : detalleAbierto());
+    // Las faltas sin confirmar se ven siempre sin filtro, y también al filtrar por faltas.
+    const pendientes = !filtro || ['falta_injustificada', 'falta_justificada', 'franco'].includes(filtroReporte) ? sinConfirmar : [];
+    const opId = state.horariosReporteOperarioId;
+    footer.textContent = `${visibles.length} de ${registros.length} día(s) cargados en el período.`
+        + (sinConfirmar.length ? ` ${sinConfirmar.length} falta(s) sin confirmar.` : '');
+    const avisoPendientes = sinConfirmar.length ? ` · ${sinConfirmar.length} sin confirmar` : '';
+    escribirTexto('horarios-detalle-cuenta', (filtro ? `(${visibles.length} de ${registros.length}` : `(${registros.length} día${registros.length === 1 ? '' : 's'}`) + `${avisoPendientes})`);
+    document.getElementById('horarios-detalle-cuenta')?.classList.toggle('hor-cuenta-sin-confirmar', sinConfirmar.length > 0);
+    // Si hay faltas por confirmar, el detalle se abre solo para que se vean.
+    abrirDetalle(filtro || sinConfirmar.length ? true : detalleAbierto());
 
-    if (visibles.length === 0) {
+    if (visibles.length === 0 && pendientes.length === 0) {
         tbody.innerHTML = `<tr><td colspan="10" class="hor-vacio">${registros.length ? 'No hay días con este filtro.' : 'Sin registros en el período seleccionado.'}</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = visibles.map(r => {
+    const filas = [
+        ...visibles.map(r => ({ fecha: r.fecha, r })),
+        ...pendientes.map(fecha => ({ fecha, r: null }))
+    ].sort((a, b) => b.fecha.localeCompare(a.fecha));
+
+    tbody.innerHTML = filas.map(({ fecha, r }) => {
+        if (!r) return filaFaltaSinConfirmar(fecha, opId);
         const info = ESTADOS[r.estado] || ESTADOS.sin_registrar;
         const extras = parseCantidad(r.horasExtras);
         const tarde = parseCantidad(r.minutosTarde);

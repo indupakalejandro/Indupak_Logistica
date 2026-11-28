@@ -2626,3 +2626,43 @@ body.light-mode .dock-burbuja { background: linear-gradient(180deg, rgba(255, 25
 
 /* Descanso cerrado automáticamente o excedido */
 .hor-descanso-excedido, .hor-descanso-excedido i { color: var(--hor-tarde) !important; }
+
+/* ---- Faltas sin confirmar: botones que titilan despacio hasta que alguien elige el motivo ---- */
+@keyframes hor-titilar-falta {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, var(--falta) 0%, transparent); }
+    50% { opacity: 0.55; box-shadow: 0 0 0 4px color-mix(in srgb, var(--falta) 22%, transparent); }
+}
+.hor-confirmar-falta-grupo { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.hor-confirmar-falta {
+    --falta: var(--hor-pendiente);
+    background: color-mix(in srgb, var(--falta) 12%, transparent);
+    color: var(--falta);
+    border: 1px solid var(--falta);
+    border-radius: 999px;
+    padding: 0.15rem 0.65rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    animation: hor-titilar-falta 2.4s ease-in-out infinite;
+}
+.hor-confirmar-falta:hover, .hor-confirmar-falta:focus-visible {
+    animation: none;
+    opacity: 1;
+    background: var(--falta);
+    color: #fff;
+}
+.hor-confirmar-falta:disabled { animation: none; opacity: 0.4; }
+.hor-confirmar-injustificada { --falta: var(--hor-injustificada); }
+.hor-confirmar-justificada { --falta: var(--hor-justificada); }
+.hor-confirmar-franco { --falta: var(--hor-franco); }
+.hor-fila-sin-confirmar > td { background: color-mix(in srgb, var(--hor-injustificada) 6%, transparent) !important; }
+.hor-cuenta-sin-confirmar { color: var(--hor-injustificada); font-weight: 600; }
+.hor-cal-sin-confirmar { --cal: transparent; }
+.hor-cal-dia.hor-cal-sin-confirmar {
+    border: 1px dashed var(--hor-injustificada);
+    color: var(--hor-injustificada);
+    animation: hor-titilar-falta 2.4s ease-in-out infinite;
+    --falta: var(--hor-injustificada);
+}
+@media (prefers-reduced-motion: reduce) {
+    .hor-confirmar-falta, .hor-cal-dia.hor-cal-sin-confirmar { animation: none; }
+}
